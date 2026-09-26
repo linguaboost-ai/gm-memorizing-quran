@@ -5,10 +5,10 @@
  * vollständig sichtbar, Stufe 5 = ganz ausgegraut. Ausgegraut wird vom Wortende
  * her, damit der Wortanfang als Stütze am längsten sichtbar bleibt.
  *
- * Ein Klick auf „Gelernt“:
- *   1. Wörter, bei denen schon Fünftel fehlen, verlieren ein weiteres Fünftel.
- *   2. Von den noch vollständigen Wörtern verliert jedes fünfte ein Fünftel
- *      (bleiben weniger als fünf übrig, trifft es das letzte davon).
+ * Jeder Klick auf „Gelernt“ graut bei jedem Wort ein weiteres Fünftel aus.
+ * Abgerundet: Nach k Klicks sind floor(k · n / 5) der n Buchstaben ausgegraut –
+ * im Zweifel bleibt also ein Buchstabe mehr sichtbar. Nach fünf Klicks ist
+ * alles ausgegraut.
  */
 (function () {
   "use strict";
@@ -36,26 +36,15 @@
     return out;
   }
 
-  /** Anzahl ausgegrauter Buchstaben bei Stufe `level` (0–5) und `n` Buchstaben. */
+  /** Anzahl ausgegrauter Buchstaben bei Stufe `level` (0–5) und `n` Buchstaben (abgerundet). */
   function fadedCount(n, level) {
     if (level <= 0) return 0;
     if (level >= PARTS) return n;
-    return Math.min(n, Math.max(1, Math.round((level * n) / PARTS)));
+    return Math.floor((level * n) / PARTS);
   }
 
-  function step(levels) {
-    const next = levels.slice();
-    const full = [];
-    levels.forEach((l, i) => {
-      if (l === 0) full.push(i);
-      else if (l < PARTS) next[i] = l + 1;
-    });
-    const picks = [];
-    for (let j = PARTS - 1; j < full.length; j += PARTS) picks.push(full[j]);
-    if (!picks.length && full.length) picks.push(full[full.length - 1]);
-    for (const i of picks) next[i] = 1;
-    return next;
-  }
+  /** Ein Klick auf „Gelernt“: jedes Wort verliert ein weiteres Fünftel. */
+  const step = (levels) => levels.map((l) => Math.min(PARTS, l + 1));
 
   const isDone = (levels) => levels.every((l) => l >= PARTS);
 
@@ -68,17 +57,6 @@
       faded += fadedCount(counts[i], l);
     });
     return total ? faded / total : 0;
-  }
-
-  /** Wie viele Runden braucht ein Abschnitt mit `n` Wörtern, bis alles ausgegraut ist? */
-  function roundsFor(n) {
-    let levels = new Array(n).fill(0);
-    let r = 0;
-    while (!isDone(levels) && r < 1000) {
-      levels = step(levels);
-      r++;
-    }
-    return r;
   }
 
   // Safari (WebKit) formt arabische Buchstaben nicht über Elementgrenzen
@@ -105,5 +83,5 @@
     return escapeHtml(keep) + '<span class="gone">' + escapeHtml(gone) + "</span>";
   }
 
-  window.Fade = { PARTS, letters, fadedCount, step, isDone, progress, roundsFor, wordHtml, escapeHtml };
+  window.Fade = { PARTS, letters, fadedCount, step, isDone, progress, wordHtml, escapeHtml };
 })();

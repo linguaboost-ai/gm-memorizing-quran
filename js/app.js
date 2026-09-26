@@ -496,13 +496,13 @@
     const s = state.session;
     const info = chunkInfo(s.day, s.chunk);
     const { day, chunk } = info;
-    const pct = Math.round(learnProgress(s, info) * 100);
     const allFaded = Fade.isDone(s.levels);
 
     let status;
     if (s.phase === "learn") {
+      const fifths = Math.min(...s.levels);
       status = `<span class="pill pill-primary">Runde ${s.round + 1}</span>
-        <span class="status-text">${s.round === 0 ? "Alles sichtbar" : allFaded ? "Alles ausgegraut" : `${pct} % ausgegraut`}</span>`;
+        <span class="status-text">${fifths === 0 ? "Alles sichtbar" : allFaded ? "Alles ausgegraut" : `${fifths}/${Fade.PARTS} ausgegraut`}</span>`;
     } else {
       status = `<span class="pill pill-gold">Wiederholung ${s.review + 1} / ${PAUSES.length}</span>
         <span class="status-text">aus dem Gedächtnis</span>`;
@@ -531,7 +531,7 @@
   function learnHint(s, day) {
     if (s.phase === "learn") {
       if (s.round === 0) return "Hör zu und lies mit – so oft du willst. Dann tippe auf „Gelernt“.";
-      if (!Fade.isDone(s.levels)) return "Lies weiter mit dem Rezitator. „Gelernt“ graut weitere Buchstaben aus.";
+      if (!Fade.isDone(s.levels)) return "Lies weiter mit dem Rezitator. „Gelernt“ graut ein weiteres Fünftel jedes Wortes aus.";
       return `Alles ausgegraut. Nach „Gelernt“ folgt eine Pause von ${minutesLabel(PAUSES[0])}.`;
     }
     if (s.review + 1 < PAUSES.length) return `Sag den Abschnitt auswendig auf. Danach: ${minutesLabel(PAUSES[s.review + 1])} Pause.`;

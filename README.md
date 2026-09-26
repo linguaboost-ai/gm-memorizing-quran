@@ -17,10 +17,10 @@ Gestaltet nach den „German Method – In-App-Käufe Screens“.
    nur diesen Abschnitt und stoppt am Ende; Pause, „Von vorn“ und Tippen auf einen
    Vers (spielt ab diesem Vers) sind möglich. Die Verse werden lückenlos in einem
    Rutsch abgespielt (Web Audio, Stille zwischen den Versdateien wird gekürzt).
-4. **„Gelernt“:** Von jedem fünften Wort wird ein Fünftel ausgegraut
-   (`opacity: 0.1`, der Buchstabenfluss bleibt erhalten). Bei jedem weiteren Klick
-   verliert jedes angefangene Wort ein weiteres Fünftel, und von den noch
-   vollständigen Wörtern wieder jedes fünfte ein Fünftel – bis alles ausgegraut ist.
+4. **„Gelernt“:** Bei jedem Wort wird ein Fünftel der Buchstaben ausgegraut
+   (`opacity: 0.1`, der Buchstabenfluss bleibt erhalten), vom Wortende her und
+   abgerundet – im Zweifel bleibt ein Buchstabe mehr sichtbar. Nach fünf Klicks
+   ist alles ausgegraut.
 5. **Pausen:** Danach nur ein Timer (1 Minute) → Seite erscheint ausgegraut →
    „Gelernt“ → 2 Minuten → Wiederholung → 4 Minuten → Wiederholung → nächste
    Lerneinheit, bis das Tagespensum geschafft ist.
