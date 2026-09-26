@@ -1,0 +1,7 @@
+# Nur die statische App ausliefern – keine Design-Vorlagen oder Werkzeuge
+German Method*
+tools/
+node_modules/
+package.json
+package-lock.json
+README.md

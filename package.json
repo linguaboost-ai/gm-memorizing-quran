@@ -1,0 +1,13 @@
+{
+  "name": "gm-memorizing-quran",
+  "version": "1.0.0",
+  "private": true,
+  "description": "German Method – Qur'an auswendig lernen im Medina-Mushaf-Layout",
+  "scripts": {
+    "build:data": "node tools/build-data.mjs",
+    "start": "npx --yes serve -l 5173 ."
+  },
+  "devDependencies": {
+    "@quran.ws/text": "0.1.0"
+  }
+}
