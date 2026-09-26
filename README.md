@@ -17,10 +17,11 @@ Gestaltet nach den „German Method – In-App-Käufe Screens“.
    nur diesen Abschnitt und stoppt am Ende; Pause, „Von vorn“ und Tippen auf einen
    Vers (spielt ab diesem Vers) sind möglich. Die Verse werden lückenlos in einem
    Rutsch abgespielt (Web Audio, Stille zwischen den Versdateien wird gekürzt).
-4. **„Gelernt“:** Bei jedem Wort wird ein Fünftel der Buchstaben ausgegraut
+4. **„Gelernt“:** Bei jedem Wort wird ein Fünftel der Zeichen ausgegraut
    (`opacity: 0.1`, der Buchstabenfluss bleibt erhalten), vom Wortende her und
-   abgerundet – im Zweifel bleibt ein Buchstabe mehr sichtbar. Nach fünf Klicks
-   ist alles ausgegraut.
+   abgerundet – im Zweifel bleibt ein Zeichen mehr sichtbar. Buchstaben und
+   Harakat zählen einzeln, die Shadda doppelt (كَذَّبَتۡ = 10 Zeichen, nach dem
+   ersten Klick ist تۡ ausgegraut). Nach fünf Klicks ist alles ausgegraut.
 5. **Pausen:** Danach nur ein Timer (1 Minute) → Seite erscheint ausgegraut →
    „Gelernt“ → 2 Minuten → Wiederholung → 4 Minuten → Wiederholung → nächste
    Lerneinheit, bis das Tagespensum geschafft ist.

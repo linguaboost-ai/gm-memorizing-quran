@@ -40,9 +40,9 @@
       return `<span class="${cls.join(" ")}"${data}>${escapeHtml(token.text)}</span>`;
     }
     const level = inRange ? ctx.levels[token.id - ctx.firstId] || 0 : 0;
-    const parts = ctx.letters[token.id - ctx.firstId];
+    const shape = ctx.shapes[token.id - ctx.firstId];
     cls.push("w");
-    const inner = inRange && parts ? wordHtml(parts, level) : escapeHtml(token.text);
+    const inner = inRange && shape ? wordHtml(shape, level) : escapeHtml(token.text);
     return `<span class="${cls.join(" ")}"${data}>${inner}</span>`;
   }
 
@@ -59,7 +59,7 @@
 
   /**
    * @param {object} surah   vorbereitete Sure (Quran.load)
-   * @param {object} opts    { from, to, levels, letters, firstId, activeAyah }
+   * @param {object} opts    { from, to, levels, shapes, firstId, activeAyah }
    */
   function html(surah, opts) {
     const ctx = opts;

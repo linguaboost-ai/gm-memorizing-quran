@@ -1051,8 +1051,25 @@ button {
   box-shadow: 0 0 0 0.08em rgba(63, 127, 196, 0.13);
 }
 
-.ml .gone {
+/* Ausgrauen: hinten das ganze Wort blass, vorne deckungsgleich der sichtbare Teil */
+.ml .w {
+  position: relative;
+}
+
+.ml .ghost {
   opacity: 0.1;
+}
+
+.ml .front {
+  position: absolute;
+  top: 0;
+  right: 0;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.ml .front .hide {
+  opacity: 0;
 }
 
 .ml .ayah-end {

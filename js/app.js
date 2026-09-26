@@ -131,13 +131,13 @@
     const day = ctx.days[dayIdx];
     const chunk = day.chunks[chunkIdx];
     const words = Quran.wordsOf(ctx.surah, chunk.from, chunk.to);
-    const letters = words.map((w) => Fade.letters(w.text));
+    const shapes = words.map((w) => Fade.analyze(w.text));
     const info = {
       day,
       chunk,
       words,
-      letters,
-      counts: letters.map((l) => l.length),
+      shapes,
+      totals: shapes.map((w) => w.total),
       firstId: words[0].id,
     };
     chunkCache.set(key, info);
@@ -480,7 +480,7 @@
   }
 
   function learnProgress(s, info) {
-    return Fade.progress(s.levels, info.counts);
+    return Fade.progress(s.levels, info.totals);
   }
 
   function segmentsHtml(s, info) {
@@ -548,7 +548,7 @@
       from: info.chunk.from,
       to: info.chunk.to,
       levels,
-      letters: info.letters,
+      shapes: info.shapes,
       firstId: info.firstId,
       activeAyah: player.activeAyah,
     });
