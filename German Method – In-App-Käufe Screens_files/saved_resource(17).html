@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<!-- saved from url=(0012)about:srcdoc -->
+<html lang="de" style="touch-action: none; overscroll-behavior: none; --dc-chrome-unit: 20px;"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style><script>
+(function () {
+  /* WebRTC is an egress channel the CSP cannot close, and Frame's runtime
+   * removes its constructors in the ARTIFACT realm only; this nested realm
+   * gets the same treatment so an artboard starts from the platform's
+   * baseline. (A page that goes looking can still find a constructor in a
+   * fresh child realm - the residual Frame accepts for every artifact.) */
+  try { delete window.RTCPeerConnection; } catch (e) {}
+  try { delete window.webkitRTCPeerConnection; } catch (e) {}
+  try { window.RTCPeerConnection = undefined; } catch (e) {}
+  try { window.webkitRTCPeerConnection = undefined; } catch (e) {}
+  var P = window.parent;
+  if (!P || P === window) return;
+  /* Liveness handshake (previewGuard.ts): mint a channel, keep one end
+   * in this closure, hand the other to the host before any authored
+   * byte runs. The port is a capability, not text - it cannot be read
+   * out of the document or serialized into a data:/blob: replacement,
+   * and it dies with this realm - so a pong is proof the document the
+   * HOST assembled is the one alive in the frame. The host binds the
+   * first hello per generation; nothing authored runs earlier, so this
+   * one always wins that race. */
+  try {
+    /* The pong path is UNCURRIED at t=0: every native it touches is
+     * captured as a value before any authored byte runs, and invoked
+     * through a captured Reflect.apply - authored prototype poisoning
+     * of MessagePort.prototype.postMessage or a trapping
+     * MessageEvent.prototype.data getter must never see this port or
+     * steal a send path. And every pong ECHOES the ping's nonce: a pong
+     * is only proof of life for the ping that asked, so stale pongs
+     * queued before a navigation prove nothing about the document that
+     * replaced this one. */
+    var applyH = Reflect.apply;
+    var getData = Object.getOwnPropertyDescriptor(MessageEvent.prototype, 'data').get;
+    var hasOwnH = Object.prototype.hasOwnProperty;
+    var ch = new MessageChannel();
+    var portPost = MessagePort.prototype.postMessage.bind(ch.port1);
+    ch.port1.onmessage = function (ev) {
+      var d = null;
+      try { d = applyH(getData, ev, []); } catch (e) { return; }
+      if (d == null || typeof d !== 'object') return;
+      if (!applyH(hasOwnH, d, ['__om_ping'])) return;
+      try { portPost({ __om_pong: d.__om_ping }); } catch (e) {}
+    };
+    P.postMessage({ __om_hello: 1 }, '*', [ch.port2]);
+  } catch (e) {}
+  /* Self-navigation tripwire: pagehide fires while THIS document is
+   * being torn down. The message is DELIVERED after the document is
+   * destroyed, so it arrives with e.source === null - the host accepts
+   * exactly that shape (a live-source forgery of it only blanks the
+   * forger's own preview). It is one tripwire, not the verdict: the
+   * port probe above is what decides, on every load. The listener is
+   * an unreachable closure - authored code has no reference to remove
+   * it, and P is captured at t=0 before anything authored runs. */
+  try {
+    window.addEventListener('pagehide', function () {
+      try { P.postMessage({ __om_nav_away: 1 }, '*'); } catch (e) {}
+    });
+  } catch (e) {}
+  /* Escape relay (np): while an artboard plays (full-window or in place)
+   * keyboard focus lives in HERE, so the host cannot hear Esc - relay
+   * it. Advisory only: the host acts on it solely to LEAVE Play, so a
+   * forged relay can do nothing worse than end the sender's own play.
+   * Capture phase, so authored handlers that stopPropagation still let
+   * it through. */
+  try {
+    window.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'Escape' || ev.repeat) return;
+      try { P.postMessage({ __om_escape: 1 }, '*'); } catch (e) {}
+    }, true);
+  } catch (e) {}
+  /* Step relay: ArrowLeft / ArrowRight for the host's full-window Previous / Next, which cannot hear keys pressed in here. Not sent: a chord,
+   * a repeat, a script's event, a key for a field, arrow-key control or sideways-scrolling page, or one the design cancelled. */
+  try {
+    var ARROW_OWNER = "input,textarea,select,video,audio,canvas,[role=application],[role=scrollbar],[aria-roledescription=carousel],[aria-roledescription=slide],[role=textbox],[role=searchbox],[role=combobox],[role=spinbutton],[role=slider],[role=radiogroup],[role=radio],[role=tablist],[role=tab],[role=toolbar],[role=menu],[role=menubar],[role=menuitem],[role=menuitemradio],[role=menuitemcheckbox],[role=listbox],[role=option],[role=tree],[role=treegrid],[role=grid]";
+    var afterDispatch = window.setTimeout.bind(window);
+    var styleOf = window.getComputedStyle.bind(window);
+    /* the page itself scrolls sideways (by more than a stray scrollbar's width) and is not clipped there */
+    var pageScrollsSideways = function () {
+      var se = document.scrollingElement;
+      if (!se || se.scrollWidth - se.clientWidth <= 24) return false;
+      var clip = /hidden|clip/;
+      var hx = styleOf(document.documentElement).overflowX;
+      if (clip.test(hx)) return false;
+      return /auto|scroll/.test(hx) || !(document.body && clip.test(styleOf(document.body).overflowX));
+    };
+    /* a clicked box that scrolls sideways takes the arrows without having focus: remember where the last press landed */
+    var lastPress = null;
+    window.addEventListener('pointerdown', function (ev) { lastPress = (ev.composedPath && ev.composedPath()[0]) || ev.target; }, true);
+    var ownsArrows = function (ev) {
+      var path = ev.composedPath ? ev.composedPath() : [ev.target];
+      if (ev.target === document.body || ev.target === document.documentElement) {
+        for (var p = lastPress; p && p.nodeType === 1 && p.isConnected; p = p.parentElement || (p.parentNode && p.parentNode.host) || null) path.push(p);
+      }
+      for (var i = 0; i < path.length; i += 1) {
+        var n = path[i];
+        if (!n || n.nodeType !== 1) continue;
+        if (n.isContentEditable || (n.matches && n.matches(ARROW_OWNER))) return true;
+        /* a box in the design that scrolls sideways keeps its arrows too */
+        if (n.scrollWidth - n.clientWidth > 24 && /auto|scroll/.test(styleOf(n).overflowX)) return true;
+      }
+      return false;
+    };
+    window.addEventListener('keydown', function (ev) {
+      if ((ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') || ev.repeat || !ev.isTrusted) return;
+      if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey || ownsArrows(ev)) return;
+      if (pageScrollsSideways()) return;
+      var dir = ev.key === 'ArrowRight' ? 1 : -1;
+      afterDispatch(function () {
+        if (ev.defaultPrevented) return;
+        try { P.postMessage({ __om_step: dir }, '*'); } catch (e) {}
+      }, 0);
+    }, false);
+  } catch (e) {}
+  /* Link relay (advisory, not hardened). Any navigation here (even "#x", resolved off <base>) trips the
+   * host's guard, so every anchor click is cancelled at capture - invisibly: the design (and the edit picker)
+   * still read defaultPrevented as false, and their own preventDefault() means hands off. Otherwise, once the
+   * click has dispatched: "#id" scrolls the frame to its target, external http(s) is handed to the host, and a
+   * project path (href="Deck.dc.html") is offered to the host, which opens it only if it names an artboard. */
+  try {
+    var compatPage = window.__omEditor === 1; /* a migrated page at its own URL (buildCompatDoc): links name pages by their project path, as its shim does */
+    /* the project root (/_f/{ver}/project/) the runner stamped ahead of this script: a link is named relative to IT, so deck/a.html's
+     * "b.html" reads deck/b.html and its "../index.html" reads index.html; read once, here, before anything authored runs */
+    var projectRoot = compatPage && typeof window.__omProjectRoot === 'string' ? window.__omProjectRoot : null;
+    var LINK_SEL = 'a[*|href],area[href]'; /* *| also catches SVG xlink:href */
+    try { document.createElement('a').matches(LINK_SEL); } catch (e) { LINK_SEL = 'a[href],area[href]'; }
+    /* A native control between the click and the link owns the click: in current engines these act without the link navigating... */
+    var CONTROL_KEEPS_CLICK = 'input[type=checkbox],input[type=radio],input[type=file],input[type=color],summary,label,video[controls],audio[controls]';
+    /* ...while these (buttons, text/number/date/range inputs, selects) would still navigate it, so the navigation is cancelled but nothing opens. */
+    var CONTROL_SEL = CONTROL_KEEPS_CLICK + ',button,input,select,textarea';
+    /* a label counts only when it labels something, a summary only as its details' first summary: otherwise the link still navigates */
+    var ownsClick = function (n) {
+      if (n.localName === 'label') return !!n.control;
+      if (n.localName !== 'summary') return true;
+      var p = n.parentNode;
+      return !!p && p.localName === 'details' && p.querySelector(':scope > summary') === n;
+    };
+    var hit = function (ev) {
+      var path = ev.composedPath ? ev.composedPath() : [ev.target];
+      var control = null;
+      for (var i = 0; i < path.length; i += 1) {
+        var n = path[i];
+        if (!n || n.nodeType !== 1 || !n.matches) continue;
+        if (n.matches(LINK_SEL)) return { a: n, control: control };
+        if (control == null && n.matches(CONTROL_SEL) && ownsClick(n)) control = n;
+      }
+      return null;
+    };
+    var follow = function (a, aux) {
+      var raw = String(a.getAttribute('href') || '').trim();
+      if (raw === '') return; /* SVG xlink-only anchors, empty href: cancelled above, inert here */
+      if (raw.charAt(0) === '#') {
+        if (aux || raw === '#') return; /* a middle click never scrolls; a bare "#" is the "script owns it" idiom: inert */
+        var id = raw.slice(1);
+        try { id = decodeURIComponent(id); } catch (e) {}
+        var t = document.getElementById(id) || document.getElementsByName(id)[0];
+        /* in-frame scroll only: a fragment navigation or scrollIntoView can also scroll the host's containers */
+        try {
+          if (t) window.scrollBy(0, t.getBoundingClientRect().top);
+          else if (id.toLowerCase() === 'top') window.scrollTo(0, 0);
+        } catch (e) {}
+        return;
+      }
+      var url = null;
+      try { url = new URL(raw, document.baseURI); } catch (e) { return; }
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+      var own = false;
+      try { own = url.origin === new URL(document.baseURI).origin; } catch (e) {}
+      if (own) {
+        if (aux || a.hasAttribute('download')) return; /* a same-origin download names no artboard (in compat mode the page shim saves it) */
+        var dir = compatPage ? (projectRoot !== null ? projectRoot : new URL('.', document.baseURI).pathname) : null;
+        if (dir !== null && url.pathname.indexOf(dir) !== 0) return; /* out of the project: not a page of it */
+        var rel = dir !== null ? url.pathname.slice(dir.length) : url.pathname.indexOf('/appifact/') === 0 ? url.pathname.slice(10) : url.pathname.slice(1);
+        try { rel = decodeURIComponent(rel); } catch (e) {}
+        try { P.postMessage({ __om_open: rel }, '*'); } catch (e) {}
+        return;
+      }
+      try { P.postMessage({ __om_link: url.href }, '*'); } catch (e) {}
+    };
+    var onLink = function (ev) {
+      var aux = ev.type === 'auxclick';
+      if (aux && ev.button !== 1) return;
+      var h = hit(ev);
+      if (h == null) return;
+      var a = h.a;
+      /* text being edited around the click (asked of the nearest HTML element: SVG nodes have no isContentEditable) */
+      var host = ev.target;
+      while (host && host.isContentEditable === undefined) host = host.parentNode;
+      var editing = !!(host && host.isContentEditable);
+      /* untouched: a control that keeps its click (any control, for a middle click), and a middle click in text being edited (paste) */
+      if ((h.control != null && (aux || h.control.matches(CONTROL_KEEPS_CLICK))) || (aux && editing)) return;
+      var handled = false;
+      var cancel = ev.preventDefault;
+      var claim = function () { handled = true; cancel.call(ev); };
+      try {
+        Object.defineProperty(ev, 'preventDefault', { value: claim, writable: true, configurable: true });
+        Object.defineProperty(ev, 'defaultPrevented', { get: function () { return handled; }, configurable: true });
+        Object.defineProperty(ev, 'returnValue', { get: function () { return !handled; }, set: function (v) { if (v === false) claim(); }, configurable: true });
+      } catch (e) {}
+      cancel.call(ev);
+      /* cancelled, nothing opens: a control the link would navigate past, a link in text being edited,
+       * and a middle button arriving as 'click' (auxclick carries the one relay for it) */
+      if (h.control != null || editing || (!aux && ev.button === 1)) return;
+      setTimeout(function () { if (!handled) follow(a, aux); }, 0);
+    };
+    window.addEventListener('click', onLink, true);
+    window.addEventListener('auxclick', onLink, true);
+  } catch (e) {}
+  var serialise = function (v) {
+    try { return JSON.stringify(v); } catch (e) { return JSON.stringify(String(v)); }
+  };
+  window.addEventListener('message', function (e) {
+    if (e.source !== P) return;
+    var d = e.data;
+    if (!d || d.__om_eval !== 1) return;
+    var reply = function (p) {
+      p.__om_eval_r = 1;
+      p.id = d.id;
+      e.source.postMessage(p, '*');
+    };
+    try {
+      var r = (0, eval)(d.code);
+      if (r && typeof r.then === 'function') {
+        r.then(
+          function (v) { reply({ ok: 1, v: serialise(v) }); },
+          function (err) { reply({ ok: 0, e: String(err) }); }
+        );
+      } else {
+        reply({ ok: 1, v: serialise(r) });
+      }
+    } catch (err) {
+      reply({ ok: 0, e: String(err) });
+    }
+  });
+})();
+</script><script>
+(function () {
+  /* Viewport guard */
+  var doc = document;
+  var align = function (lo, hi, cLo, cHi, mode) {
+    if (mode === 'start') return lo - cLo;
+    if (mode === 'end') return hi - cHi;
+    if (mode === 'center') return (lo + hi) / 2 - (cLo + cHi) / 2;
+    if ((lo >= cLo && hi <= cHi) || (lo < cLo && hi > cHi)) return 0; /* fully visible, or covering */
+    /* center-if-needed centres only a fully hidden target; a partly visible one moves to the nearest edge */
+    if (mode === 'center-if-needed' && (hi <= cLo || lo >= cHi)) return (lo + hi) / 2 - (cLo + cHi) / 2;
+    var fits = hi - lo <= cHi - cLo;
+    if (lo < cLo) return fits ? lo - cLo : hi - cHi;
+    return fits ? hi - cHi : lo - cLo;
+  };
+  var styleOf = function (n) {
+    try { return getComputedStyle(n); } catch (e) { return null; }
+  };
+  var set = function (v) { return !!v && v !== 'none' && v !== 'auto'; };
+  /* transform-like properties make a box the containing block of its absolute AND fixed descendants */
+  var containsFixed = function (cs) {
+    return set(cs.transform) || set(cs.translate) || set(cs.rotate) || set(cs.scale) || set(cs.perspective) || set(cs.filter) ||
+      set(cs.backdropFilter) || cs.transformStyle === 'preserve-3d' || /layout|paint|strict|content/.test(cs.contain || '') ||
+      /(^|,)\s*(transform|translate|rotate|scale|perspective|filter|backdrop-filter)\s*(,|$)/.test(cs.willChange || '');
+  };
+  var scrolls = function (n, cs) {
+    var v = cs.overflow + ' ' + cs.overflowX + ' ' + cs.overflowY;
+    return /auto|scroll|hidden/.test(v) && (n.scrollHeight > n.clientHeight || n.scrollWidth > n.clientWidth);
+  };
+  var up = function (n) {
+    if (n.assignedSlot) return n.assignedSlot;
+    var p = n.parentNode;
+    return p && p.nodeType === 11 && p.host ? p.host : p;
+  };
+  /* Reveal el inside this document only: each scrolling ancestor, then the frame's own viewport. Never the parent's. */
+  var reveal = function (el, block, inline, smooth) {
+    if (!el || typeof el.getClientRects !== 'function' || el.getClientRects().length === 0) return; /* no box: nothing to reveal */
+    var d = el.ownerDocument || doc;
+    var root = d.scrollingElement || d.documentElement;
+    /* Only boxes in el's containing-block chain can move it: an absolute box skips static ancestors up to a positioned or
+     * transform-like one; a fixed box skips everything up to a transform-like one (none: not even the viewport moves it). */
+    var es = styleOf(el);
+    var pos = (es && es.position) || 'static';
+    var seekAbs = pos === 'absolute', seekFixed = pos === 'fixed';
+    for (var n = up(el); n && n !== root && n.nodeType === 1; n = up(n)) {
+      var cs = styleOf(n);
+      if (!cs) continue;
+      pos = cs.position || 'static';
+      if (seekFixed ? !containsFixed(cs) : seekAbs && pos === 'static' && !containsFixed(cs)) continue;
+      seekAbs = pos === 'absolute';
+      seekFixed = pos === 'fixed';
+      if (!scrolls(n, cs)) continue;
+      var r = el.getBoundingClientRect();
+      var c = n.getBoundingClientRect();
+      var cTop = c.top + n.clientTop, cLeft = c.left + n.clientLeft;
+      var dy = align(r.top, r.bottom, cTop, cTop + n.clientHeight, block);
+      var dx = align(r.left, r.right, cLeft, cLeft + n.clientWidth, inline);
+      if (!dx && !dy) continue;
+      /* instant even under CSS scroll-behavior:smooth: the next step must read the settled position ('smooth' applies to the viewport step) */
+      if (typeof n.scrollTo === 'function') n.scrollTo({ left: n.scrollLeft + dx, top: n.scrollTop + dy, behavior: 'instant' });
+      else { n.scrollTop += dy; n.scrollLeft += dx; }
+    }
+    if (seekFixed) return;
+    var rr = el.getBoundingClientRect();
+    var vw = (root && root.clientWidth) || window.innerWidth, vh = (root && root.clientHeight) || window.innerHeight;
+    var wy = align(rr.top, rr.bottom, 0, vh, block);
+    var wx = align(rr.left, rr.right, 0, vw, inline);
+    if (wx || wy) window.scrollBy({ left: wx, top: wy, behavior: smooth ? 'smooth' : 'auto' });
+  };
+  var deepActive = function (el, d) {
+    var r = el.getRootNode ? el.getRootNode() : d; /* el's own (possibly closed) shadow root sees its activeElement */
+    var a = (r && 'activeElement' in r ? r : d).activeElement;
+    while (a && a.shadowRoot && a.shadowRoot.activeElement) a = a.shadowRoot.activeElement;
+    return a;
+  };
+  var within = function (a, el) {
+    for (var n = a; n; n = up(n)) if (n === el) return true;
+    return false;
+  };
+  var guardFocus = function (proto) {
+    if (!proto || typeof proto.focus !== 'function') return;
+    var native = proto.focus;
+    /* reveal only what actually took focus (el, or its delegate inside it), and only if focus moved - as the native does */
+    proto.focus = function focus(o) {
+      var d = this.ownerDocument || doc;
+      var before = deepActive(this, d);
+      native.call(this, o && o.focusVisible !== undefined ? { preventScroll: true, focusVisible: o.focusVisible } : { preventScroll: true });
+      if (o && o.preventScroll) return;
+      try { var a = deepActive(this, d); if (a && a !== before && within(a, this)) reveal(a, 'center-if-needed', 'center-if-needed', false); } catch (e) {}
+    };
+  };
+  guardFocus(window.HTMLElement && window.HTMLElement.prototype);
+  guardFocus(window.SVGElement && window.SVGElement.prototype);
+  guardFocus(window.MathMLElement && window.MathMLElement.prototype);
+  var E = window.Element;
+  if (E) {
+    E.prototype.scrollIntoView = function scrollIntoView(arg) {
+      var dict = arg == null || typeof arg === 'object';
+      var o = (dict && arg) || {};
+      var block = dict ? o.block || 'start' : arg ? 'start' : 'end';
+      try { reveal(this, block, o.inline || 'nearest', o.behavior === 'smooth'); } catch (e) {}
+    };
+    E.prototype.scrollIntoViewIfNeeded = function scrollIntoViewIfNeeded(center) {
+      var mode = center === undefined || center ? 'center-if-needed' : 'nearest';
+      try { reveal(this, mode, mode, false); } catch (e) {}
+    };
+  }
+})();
+</script><script>
+(function () {
+  var PREFIX = 'page:';
+  var memory = function () {
+    var m = Object.create(null);
+    return {
+      getItem: function (k) { return k in m ? m[k] : null; },
+      setItem: function (k, v) { m[k] = String(v); },
+      removeItem: function (k) { delete m[k]; },
+      key: function (i) { var ks = Object.keys(m); i = Math.floor(Number(i)) || 0; return i >= 0 && i < ks.length ? ks[i] : null; },
+      get length() { return Object.keys(m).length; }
+    };
+  };
+  var scope = function (real) {
+    var keys = function () {
+      var out = [];
+      for (var i = 0, n = real.length; i < n; i++) { var k = real.key(i); if (k !== null && k.indexOf(PREFIX) === 0) out.push(k.slice(PREFIX.length)); }
+      return out;
+    };
+    var api = {
+      getItem: function (k) { return real.getItem(PREFIX + String(k)); },
+      setItem: function (k, v) { real.setItem(PREFIX + String(k), String(v)); },
+      removeItem: function (k) { real.removeItem(PREFIX + String(k)); },
+      clear: function () { keys().forEach(function (k) { real.removeItem(PREFIX + k); }); },
+      key: function (i) { var ks = keys(); i = Math.floor(Number(i)) || 0; return i >= 0 && i < ks.length ? ks[i] : null; },
+      get length() { return keys().length; }
+    };
+    if (typeof Proxy !== 'function') return api;
+    var own = function (p) { return typeof p === 'string' && !(p in api) && p !== 'length'; };
+    return new Proxy(api, {
+      get: function (t, p) { if (p === 'length') return keys().length; if (p in api) return api[p]; if (!own(p)) return undefined; var v = real.getItem(PREFIX + p); return v === null ? undefined : v; },
+      set: function (t, p, v) { if (own(p)) real.setItem(PREFIX + p, String(v)); return true; },
+      deleteProperty: function (t, p) { if (own(p)) real.removeItem(PREFIX + p); return true; },
+      has: function (t, p) { return p in api || p === 'length' || (own(p) && real.getItem(PREFIX + p) !== null); },
+      ownKeys: function () { return keys(); },
+      getOwnPropertyDescriptor: function (t, p) { if (!own(p)) return undefined; var v = real.getItem(PREFIX + p); return v === null ? undefined : { value: v, writable: true, enumerable: true, configurable: true }; }
+    });
+  };
+  var natives = {};
+  var views = {};
+  ['localStorage', 'sessionStorage'].forEach(function (n) {
+    var real = null;
+    try { real = window[n]; } catch (e) { real = null; }
+    if (!real || typeof real.getItem !== 'function') real = memory();
+    natives[n] = real;
+    views[n] = scope(real);
+    try { Object.defineProperty(window, n, { value: views[n], configurable: true }); } catch (e) {}
+  });
+  /* 'storage' events, the same view: a write to the namespace (another artboard, another tab) reaches the page's listeners
+   * with its own key and the scoped store as storageArea; anything else on this origin (the editor's stash and prefs, a key
+   * outside the namespace) is not the page's and does not reach them. Registered first and capturing, so it runs before any
+   * listener the page adds, onstorage included. */
+  try {
+    window.addEventListener('storage', function (e) {
+      if (!e.isTrusted) return; /* one the page dispatched itself (a same-window sync idiom): its own traffic, already in its own terms */
+      var k = e.key;
+      var area = e.storageArea === natives.localStorage ? views.localStorage : e.storageArea === natives.sessionStorage ? views.sessionStorage : null;
+      if (k === null || (typeof k === 'string' && k.indexOf(PREFIX) === 0)) { /* a namespace key, or a whole-store clear (null): the page's, in its terms */
+        try { Object.defineProperties(e, { key: { value: k === null ? null : k.slice(PREFIX.length), configurable: true }, storageArea: { value: area, configurable: true } }); } catch (x) { e.stopImmediatePropagation(); }
+        return;
+      }
+      e.stopImmediatePropagation();
+    }, true);
+  } catch (e) {}
+})();
+</script>
+
+
+
+<title>E3 · Termin für die Live-Session wählen</title>
+<!--<base href="/appifact/E3_Termin_waehlen.dc.html">--><base href=".">
+<script>window.__dcFiles = {"E3_Termin_waehlen.dc.html":"\u003c!doctype html>\n\u003chtml lang=\"de\">\n\u003chead>\n\u003cmeta charset=\"utf-8\">\n\u003ctitle>E3 · Termin für die Live-Session wählen\u003c/title>\n\u003cscript src=\"./support.js\">\u003c/script>\n\u003c/head>\n\u003cbody>\n\u003cx-dc>\n\u003chelmet>\n\u003cstyle>\n@font-face { font-family: 'DM Sans'; font-weight: 400; font-style: normal; src: url(/_blob/83f23a83e7ff7484b6e798de34e94f99) format('truetype'); }\n@font-face { font-family: 'DM Sans'; font-weight: 500; font-style: normal; src: url(/_blob/5a1cfd2ef0a33fcdc9e004cb05ee3000) format('truetype'); }\n@font-face { font-family: 'DM Sans'; font-weight: 600; font-style: normal; src: url(/_blob/984d483241c97f63438894569559a6a8) format('truetype'); }\n@font-face { font-family: 'DM Sans'; font-weight: 700; font-style: normal; src: url(/_blob/004191a7e26b0ce61e8ae9198979f4e7) format('truetype'); }\n@font-face { font-family: 'DM Sans'; font-weight: 800; font-style: normal; src: url(/_blob/09431a43993e055a94d271d9c648fc2f) format('truetype'); }\n@font-face { font-family: 'DM Sans'; font-weight: 400; font-style: italic; src: url(/_blob/2ae6eebf5d9bd1952603984c6db5f312) format('truetype'); }\n@font-face { font-family: 'DM Sans'; font-weight: 700; font-style: italic; src: url(/_blob/280bc6ee08d724b3f96b134ef2e0303c) format('truetype'); }\n@font-face { font-family: 'UthmanicHafs'; src: url(/_blob/1b3a98ed724bd5161609cb2f4b3c3bb8) format('truetype'); }\nbody { margin: 0; }\na { color: #26247B; } a:hover { color: #1F1D6A; }\nbutton { font-family: inherit; }\n\u003c/style>\n\u003c/helmet>\n\u003cdiv style=\"width: 390px; height: 844px; position: relative; overflow: hidden; box-sizing: border-box; font-family: 'DM Sans', -apple-system, system-ui, sans-serif; color: #111827; line-height: 1.3; background: radial-gradient(420px 420px at 92% 10%, rgba(99,56,140,0.09), rgba(99,56,140,0) 70%), radial-gradient(440px 440px at 4% 50%, rgba(0,127,165,0.07), rgba(0,127,165,0) 70%), radial-gradient(360px 360px at 90% 94%, rgba(99,56,140,0.09), rgba(99,56,140,0) 70%), radial-gradient(340px 340px at 10% 92%, rgba(185,159,111,0.12), rgba(185,159,111,0) 70%), linear-gradient(135deg, #E8E4F0 0%, #F5F3F8 50%, #E0E8F5 100%); display: flex; flex-direction: column\">\u003cheader style=\"padding-top: 54px; flex-shrink: 0\">\u003cdiv style=\"height: 56px; display: flex; align-items: center\">\u003cbutton type=\"button\" aria-label=\"Zurück\" style=\"width: 54px; height: 54px; display: flex; align-items: center; justify-content: center; text-decoration: none; background: transparent; border: 0; padding: 0; cursor: pointer\">\u003csvg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"#111827\" aria-hidden=\"true\" style=\"display: block; flex-shrink: 0\">\u003cpath d=\"M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z\">\u003c/path>\u003c/svg>\u003c/button>\u003ch1 style=\"flex-grow: 1; margin: 0; text-align: center; font-size: 18px; font-weight: 600; color: #111827\">Live-Session\u003c/h1>\u003cdiv style=\"width: 54px\">\u003c/div>\u003c/div>\u003c/header>\u003cmain style=\"flex-grow: 1; padding: 16px 20px 0; display: flex; flex-direction: column\">\u003cdiv style=\"background: #FFFFFF; border: 1px solid #EAE8F0; border-radius: 16px; padding: 16px; box-sizing: border-box\">\u003cdiv style=\"display: flex; gap: 12px; align-items: flex-start\">\u003cspan style=\"width: 40px; height: 40px; border-radius: 50%; background: #E0F5F5; display: flex; align-items: center; justify-content: center; flex-shrink: 0\">\u003csvg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"#00797C\" aria-hidden=\"true\" style=\"display: block; flex-shrink: 0\">\u003cpath d=\"M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z\">\u003c/path>\u003c/svg>\u003c/span>\u003cdiv style=\"display: flex; flex-direction: column; gap: 4px\">\u003cspan style=\"font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: #00797C\">Geschenkt\u003c/span>\u003cspan style=\"font-size: 18px; font-weight: 700; color: #111827\">Deine Live-Session\u003c/span>\u003cspan style=\"font-size: 14px; line-height: 1.45; color: #6B7280\">45 Minuten mit unseren Lehrern in einer kleinen Gruppe. Bring deine Fragen mit.\u003c/span>\u003c/div>\u003c/div>\u003c/div>\u003cdiv style=\"margin-top: 24px\">\u003ch3 style=\"margin: 0; padding-left: 4px; font-size: 12px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: #6B7280\">Nächste Woche\u003c/h3>\u003c/div>\u003cdiv style=\"margin-top: 12px; display: flex; flex-direction: column; gap: 10px\">\u003cbutton type=\"button\" aria-pressed=\"true\" style=\"display: flex; align-items: center; gap: 14px; width: 100%; box-sizing: border-box; padding: 12px 16px; border-radius: 16px; border: 1.5px solid #26247B; background: #EFF0FF; font-family: 'DM Sans', -apple-system, system-ui, sans-serif; text-align: left; cursor: pointer\">\u003cspan style=\"width: 44px; display: flex; flex-direction: column; align-items: center; flex-shrink: 0\">\u003cspan style=\"font-size: 12px; font-weight: 700; letter-spacing: 0.5px; color: #6B7280\">DI\u003c/span>\u003cspan style=\"font-size: 22px; font-weight: 800; line-height: 1.1; color: #111827\">29\u003c/span>\u003c/span>\u003cspan style=\"flex-grow: 1; display: flex; flex-direction: column; gap: 2px\">\u003cspan style=\"font-size: 16px; font-weight: 700; color: #111827\">19:00 – 19:45 Uhr\u003c/span>\u003cspan style=\"font-size: 14px; color: #6B7280\">mit Ustadh Bilal · 45 Min.\u003c/span>\u003c/span>\u003cspan style=\"width: 22px; height: 22px; border-radius: 50%; box-sizing: border-box; flex-shrink: 0; border: 6px solid #26247B; background: #FFFFFF\">\u003c/span>\u003c/button>\u003cbutton type=\"button\" aria-pressed=\"false\" style=\"display: flex; align-items: center; gap: 14px; width: 100%; box-sizing: border-box; padding: 12px 16px; border-radius: 16px; border: 1px solid #EAE8F0; background: #FFFFFF; font-family: 'DM Sans', -apple-system, system-ui, sans-serif; text-align: left; cursor: pointer\">\u003cspan style=\"width: 44px; display: flex; flex-direction: column; align-items: center; flex-shrink: 0\">\u003cspan style=\"font-size: 12px; font-weight: 700; letter-spacing: 0.5px; color: #6B7280\">MI\u003c/span>\u003cspan style=\"font-size: 22px; font-weight: 800; line-height: 1.1; color: #111827\">30\u003c/span>\u003c/span>\u003cspan style=\"flex-grow: 1; display: flex; flex-direction: column; gap: 2px\">\u003cspan style=\"font-size: 16px; font-weight: 700; color: #111827\">18:00 – 18:45 Uhr\u003c/span>\u003cspan style=\"font-size: 14px; color: #6B7280\">mit Ustadha Maryam · 45 Min.\u003c/span>\u003c/span>\u003cspan style=\"width: 22px; height: 22px; border-radius: 50%; box-sizing: border-box; flex-shrink: 0; border: 2px solid #C1C0C9\">\u003c/span>\u003c/button>\u003cbutton type=\"button\" aria-pressed=\"false\" style=\"display: flex; align-items: center; gap: 14px; width: 100%; box-sizing: border-box; padding: 12px 16px; border-radius: 16px; border: 1px solid #EAE8F0; background: #FFFFFF; font-family: 'DM Sans', -apple-system, system-ui, sans-serif; text-align: left; cursor: pointer\">\u003cspan style=\"width: 44px; display: flex; flex-direction: column; align-items: center; flex-shrink: 0\">\u003cspan style=\"font-size: 12px; font-weight: 700; letter-spacing: 0.5px; color: #6B7280\">DO\u003c/span>\u003cspan style=\"font-size: 22px; font-weight: 800; line-height: 1.1; color: #111827\">1\u003c/span>\u003c/span>\u003cspan style=\"flex-grow: 1; display: flex; flex-direction: column; gap: 2px\">\u003cspan style=\"font-size: 16px; font-weight: 700; color: #111827\">19:00 – 19:45 Uhr\u003c/span>\u003cspan style=\"font-size: 14px; color: #6B7280\">mit Ustadh Bilal · 45 Min.\u003c/span>\u003c/span>\u003cspan style=\"width: 22px; height: 22px; border-radius: 50%; box-sizing: border-box; flex-shrink: 0; border: 2px solid #C1C0C9\">\u003c/span>\u003c/button>\u003cbutton type=\"button\" aria-pressed=\"false\" style=\"display: flex; align-items: center; gap: 14px; width: 100%; box-sizing: border-box; padding: 12px 16px; border-radius: 16px; border: 1px solid #EAE8F0; background: #FFFFFF; font-family: 'DM Sans', -apple-system, system-ui, sans-serif; text-align: left; cursor: pointer\">\u003cspan style=\"width: 44px; display: flex; flex-direction: column; align-items: center; flex-shrink: 0\">\u003cspan style=\"font-size: 12px; font-weight: 700; letter-spacing: 0.5px; color: #6B7280\">SA\u003c/span>\u003cspan style=\"font-size: 22px; font-weight: 800; line-height: 1.1; color: #111827\">3\u003c/span>\u003c/span>\u003cspan style=\"flex-grow: 1; display: flex; flex-direction: column; gap: 2px\">\u003cspan style=\"font-size: 16px; font-weight: 700; color: #111827\">11:00 – 11:45 Uhr\u003c/span>\u003cspan style=\"font-size: 14px; color: #6B7280\">mit Ustadha Maryam · 45 Min.\u003c/span>\u003c/span>\u003cspan style=\"width: 22px; height: 22px; border-radius: 50%; box-sizing: border-box; flex-shrink: 0; border: 2px solid #C1C0C9\">\u003c/span>\u003c/button>\u003cbutton type=\"button\" aria-pressed=\"false\" style=\"display: flex; align-items: center; gap: 14px; width: 100%; box-sizing: border-box; padding: 12px 16px; border-radius: 16px; border: 1px solid #EAE8F0; background: #FFFFFF; font-family: 'DM Sans', -apple-system, system-ui, sans-serif; text-align: left; cursor: pointer\">\u003cspan style=\"width: 44px; display: flex; flex-direction: column; align-items: center; flex-shrink: 0\">\u003cspan style=\"font-size: 12px; font-weight: 700; letter-spacing: 0.5px; color: #6B7280\">SO\u003c/span>\u003cspan style=\"font-size: 22px; font-weight: 800; line-height: 1.1; color: #111827\">4\u003c/span>\u003c/span>\u003cspan style=\"flex-grow: 1; display: flex; flex-direction: column; gap: 2px\">\u003cspan style=\"font-size: 16px; font-weight: 700; color: #111827\">17:00 – 17:45 Uhr\u003c/span>\u003cspan style=\"font-size: 14px; color: #6B7280\">mit Ustadh Yusuf · 45 Min.\u003c/span>\u003c/span>\u003cspan style=\"width: 22px; height: 22px; border-radius: 50%; box-sizing: border-box; flex-shrink: 0; border: 2px solid #C1C0C9\">\u003c/span>\u003c/button>\u003c/div>\u003c/main>\u003cfooter style=\"flex-shrink: 0; padding: 16px 16px 58px\">\u003ca href=\"E4_Gebucht.dc.html\" style=\"display: flex; align-items: center; justify-content: center; gap: 8px; box-sizing: border-box; width: 100%; padding: 16px; border-radius: 16px; background: #26247B; border: 2px solid #26247B; color: #FFFFFF; font-family: 'DM Sans', -apple-system, system-ui, sans-serif; font-size: 16px; font-weight: 800; line-height: 1.3; text-decoration: none; text-align: center; cursor: pointer\">\u003cspan>TERMIN RESERVIEREN\u003c/span>\u003c/a>\u003c/footer>\u003c/div>\n\u003c/x-dc>\n\u003cscript type=\"text/x-dc\" data-dc-script data-props='{\"$preview\": {\"width\": 390, \"height\": 844}}'>\nclass Component extends DCLogic {\n  renderVals() {\n    return {};\n  }\n}\n\u003c/script>\n\u003c/body>\n\u003c/html>\n"}; window.__dcRootPath = "E3_Termin_waehlen.dc.html";</script>
+<script>
+(function () {
+  var real = window.fetch.bind(window);
+  var IMAGE_MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', bmp: 'image/bmp', svg: 'image/svg+xml' };
+  var TEXT_MIME = { html: 'text/html', css: 'text/css', js: 'text/javascript', mjs: 'text/javascript', json: 'application/json' };
+  /* The requested URL as a project key: relative to the root file's folder ('../x' too, and the
+   * runtime's encoded '..%2FName.dc.html'), or absolute under <base> (/appifact/...) - resolveRef in preview.ts. */
+  var norm = function (u) {
+    if (u && typeof u === 'object' && typeof u.url === 'string') u = u.url;
+    u = String(u).split('#')[0].split('?')[0];
+    // dc-runtime boot() re-fetches location.href to re-adopt its own raw
+    // bytes (camelCase attr repair). In a srcdoc document that URL is
+    // about:srcdoc, which fetch() can't load - serve the root source from
+    // the map instead, keeping the fidelity pass working.
+    if (u === 'about:srcdoc' || u === String(location.href)) {
+      return window.__dcRootPath || u;
+    }
+    var dir = String(window.__dcRootPath || '').replace(/[^/]*$/, '');
+    /* an absolute URL counts only when it is this document's own base origin + /appifact/ (dc-runtime resolves against the base) */
+    if (/^[a-z][a-z0-9+.-]*:/i.test(u) || u.slice(0, 2) === '//') {
+      try { var abs = new URL(u, document.baseURI), base = new URL(document.baseURI); if (abs.origin !== base.origin || abs.pathname.indexOf('/appifact/') !== 0) return null; u = abs.pathname; } catch (e) { return null; }
+    }
+    if (u.indexOf('/appifact/') === 0) { u = u.slice(10); dir = ''; }
+    else if (u.charAt(0) === '/') dir = '';
+    try { u = decodeURIComponent(u); } catch (e) {}
+    var out = [];
+    var segs = (dir + u).split('/');
+    for (var s = 0; s < segs.length; s += 1) {
+      if (segs[s] === '' || segs[s] === '.') continue;
+      if (segs[s] === '..') out.pop(); else out.push(segs[s]);
+    }
+    return out.join('/');
+  };
+  /* the stored file a URL names, read live from the map: {key, mime, text, bytes (images)} or null */
+  var lookup = function (url) {
+    var key = norm(url);
+    var files = window.__dcFiles || {};
+    if (key === null || !Object.prototype.hasOwnProperty.call(files, key)) return null;
+    var ext = key.slice(key.lastIndexOf('.') + 1).toLowerCase();
+    var img = IMAGE_MIME[ext];
+    var text = String(files[key]);
+    var bytes = null;
+    if (img) { try { var bin = atob(text); bytes = new Uint8Array(bin.length); for (var b = 0; b < bin.length; b += 1) bytes[b] = bin.charCodeAt(b); } catch (e) { img = ''; bytes = null; } }
+    return { key: key, mime: img || TEXT_MIME[ext] || 'text/plain', text: text, bytes: bytes };
+  };
+  window.__dcLookup = lookup;
+  window.fetch = function (url, opts) {
+    var f = lookup(url);
+    if (f) return Promise.resolve(new Response(f.bytes || f.text, { status: 200, headers: { 'Content-Type': f.mime } }));
+    return real(url, opts);
+  };
+})();
+
+(function () {
+  var X = window.XMLHttpRequest, lookup = window.__dcLookup;
+  if (!X || !X.prototype || typeof lookup !== 'function') return;
+  var P = X.prototype, realOpen = P.open, realSend = P.send, realHeader = P.setRequestHeader, realMime = P.overrideMimeType, realAbort = P.abort;
+  var SHADOWED = ['readyState', 'status', 'statusText', 'response', 'responseText', 'responseXML', 'responseURL', 'getResponseHeader', 'getAllResponseHeaders'];
+  var set = function (x, k, v) { try { Object.defineProperty(x, k, { value: v, configurable: true, writable: true }); } catch (e) {} };
+  /* a reused object gets its native accessors back before each open */
+  var clear = function (x) { for (var i = 0; i < SHADOWED.length; i += 1) { try { delete x[SHADOWED[i]]; } catch (e) {} } };
+  var fire = function (x, type) { try { x.dispatchEvent(new Event(type)); } catch (e) {} };
+  P.open = function (method, url) {
+    clear(this);
+    var f = /^get$/i.test(String(method)) ? lookup(url) : null;
+    if (!f) { this.__dcHit = null; return realOpen.apply(this, arguments); }
+    /* a reused object: quiesce any native request still in flight, as a native open would */
+    if (this.__dcHit === null) { try { realAbort.apply(this); } catch (e) {} }
+    this.__dcHit = { f: f, async: arguments.length < 3 || !!arguments[2] };
+    set(this, 'readyState', 1);
+    set(this, 'status', 0);
+    fire(this, 'readystatechange');
+  };
+  P.setRequestHeader = function () { if (!this.__dcHit) return realHeader.apply(this, arguments); };
+  if (realMime) P.overrideMimeType = function () { if (!this.__dcHit) return realMime.apply(this, arguments); };
+  P.abort = function () {
+    var hit = this.__dcHit;
+    if (!hit) return realAbort.apply(this, arguments);
+    this.__dcHit = null;
+    if (hit.sent && !hit.done) { set(this, 'readyState', 4); fire(this, 'readystatechange'); fire(this, 'abort'); fire(this, 'loadend'); }
+    clear(this);
+  };
+  P.send = function () {
+    var hit = this.__dcHit;
+    if (!hit) return realSend.apply(this, arguments);
+    if (hit.sent) return;
+    hit.sent = true;
+    var x = this, f = hit.f, rt = '';
+    try { rt = String(x.responseType || ''); } catch (e) {}
+    var done = function () {
+      if (x.__dcHit !== hit) return; /* aborted or re-opened */
+      /* as text: the file's characters (an image's bytes decoded, as fetch().text() gives), never the map's base64 */
+      var text = f.bytes ? new TextDecoder().decode(f.bytes) : f.text;
+      var body = text;
+      try {
+        if (rt === 'arraybuffer') body = f.bytes ? f.bytes.buffer.slice(0) : new TextEncoder().encode(f.text).buffer;
+        else if (rt === 'blob') body = new Blob([f.bytes || f.text], { type: f.mime });
+        else if (rt === 'json') body = JSON.parse(text);
+        else if (rt === 'document') body = new DOMParser().parseFromString(text, f.mime === 'text/html' ? 'text/html' : f.mime === 'image/svg+xml' ? 'image/svg+xml' : 'application/xml');
+      } catch (e) { body = null; }
+      set(x, 'status', 200);
+      set(x, 'statusText', 'OK');
+      try { set(x, 'responseURL', String(new URL('/appifact/' + f.key.split('/').map(encodeURIComponent).join('/'), document.baseURI))); } catch (e) {}
+      set(x, 'response', body);
+      if (rt === '' || rt === 'text') set(x, 'responseText', text);
+      if (rt === 'document') set(x, 'responseXML', body);
+      x.getResponseHeader = function (n) { return /^content-type$/i.test(String(n)) ? f.mime : null; };
+      x.getAllResponseHeaders = function () { return 'content-type: ' + f.mime + '\r\n'; };
+      set(x, 'readyState', 4);
+      hit.done = true;
+      fire(x, 'readystatechange');
+      fire(x, 'load');
+      fire(x, 'loadend');
+    };
+    if (hit.async) setTimeout(done, 0); else done();
+  };
+})();
+
+window.__dcRun = (function () {
+  var has = Object.prototype.hasOwnProperty;
+  var fail = function (key) { try { window.parent.postMessage({ __dc_boot_failed: 1, e: 'a script of this design did not load: ' + key }, '*'); } catch (e) {} };
+  /* a blob: URL that did not load: a file whose text the frame has still runs (inline, at that point); only a URL-only part fails the boot */
+  var recover = function (key, attrs) { var files = window.__dcFiles || {}; if (!has.call(files, key)) return fail(key); var s = document.createElement('script'); for (var a in attrs) { if (has.call(attrs, a) && !/^(async|defer|integrity|crossorigin)$/i.test(a)) { try { s.setAttribute(a, String(attrs[a])); } catch (e) {} } } s.text = String(files[key]) + '\n//# sourceURL=/appifact/' + encodeURI(key); (document.head || document.documentElement).appendChild(s); };
+  /* the parser's tip: a script the parser itself is executing right now (no node follows it anywhere up the tree) -
+   * the only place a document.write lands in place rather than re-opening the document */
+  var atTip = function (el) { for (var n = el; n; n = n.parentNode) { if (n.nextSibling) return false; } return true; };
+  return function (key, attrs) {
+    var files = window.__dcFiles || {}, urls = window.__dcPartUrls || {};
+    var url = has.call(urls, key) ? urls[key] : null;
+    if (url === null && !has.call(files, key)) return;
+    attrs = attrs || {};
+    /* defer/async: after the parse, in document order (as every deferred script here has always run) */
+    var later = has.call(attrs, 'defer') || has.call(attrs, 'async');
+    var cur = document.currentScript;
+    if (document.readyState === 'loading' && cur && atTip(cur)) {
+      /* written where the tag stood, this IS the tag the page wrote: parser-blocking (or natively deferred), same
+       * attributes; a part loads by the page URL every artboard shares (one compile), any other file by a URL of its own */
+      if (url === null && later) { try { url = URL.createObjectURL(new Blob([String(files[key]), '\n//# sourceURL=/appifact/' + encodeURI(key)], { type: 'text/javascript' })); } catch (e) { url = null; } }
+      if (url !== null) {
+        var h = '<' + 'script src="' + url + '"' + (later ? ' defer' : '');
+        for (var n in attrs) { if (has.call(attrs, n) && /^[\w:.-]+$/.test(n) && !/^(async|defer|integrity|crossorigin)$/i.test(n)) h += ' ' + n + '="' + String(attrs[n]).replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '"'; }
+        try {
+          document.write(h + '></' + 'script>');
+          var w = document.scripts[document.scripts.length - 1]; /* the tag just written (the parser inserts it before write returns) */
+          if (w && w !== cur && w.getAttribute('src') === url) { w.addEventListener('error', function () { recover(key, attrs); }); return; }
+          /* the write did not land (a Trusted Types default policy rewrote it, say): load it the other way rather than not at all */
+        } catch (e) {}
+      }
+    }
+    var run = function () {
+      var s = document.createElement('script');
+      for (var a in attrs) { if (has.call(attrs, a) && (url === null || !/^(async|defer|integrity|crossorigin)$/i.test(a))) { try { s.setAttribute(a, String(attrs[a])); } catch (e) {} } }
+      if (has.call(files, key)) s.text = String(files[key]) + '\n//# sourceURL=/appifact/' + encodeURI(key);
+      else { s.async = false; s.src = url; s.addEventListener('error', function () { recover(key, attrs); }); } /* no text on hand (not expected: the bootloader hands every part's text): by URL, in insertion order */
+      /* where the tag stood (document.currentScript keeps its position and data- attributes), else the head */
+      var c = document.currentScript;
+      if (c && c.parentNode) c.parentNode.insertBefore(s, c); else (document.head || document.documentElement).appendChild(s);
+      /* an external script fires 'load' once it has run; the inline stand-in has run by now, so fire it for onload= handlers */
+      if (has.call(files, key)) { try { s.dispatchEvent(new Event('load')); } catch (e) {} }
+    };
+    if (later && document.readyState === 'loading') document.addEventListener('readystatechange', function g() { document.removeEventListener('readystatechange', g); run(); });
+    else run();
+  };
+})();
+
+(function () {
+  var files = window.__dcFiles || {};
+  var blobs = window.__dcPartBlobs || {}, urls = window.__dcPartUrls || {}; /* two-phase boot: a part keeps the page's URL (shared), else its Blob */
+  var imports = {}, has = Object.prototype.hasOwnProperty;
+  var n = 0;
+  for (var k in files) {
+    if (!has.call(files, k) || !/\.m?js$/i.test(k) || /(^|\/)support\.js$/.test(k)) continue;
+    var url;
+    if (has.call(urls, k)) url = urls[k];
+    else { try { url = URL.createObjectURL(blobs[k] instanceof Blob ? blobs[k] : new Blob([String(files[k])], { type: 'text/javascript' })); } catch (e) { continue; } }
+    imports['/appifact/' + k.split('/').map(encodeURIComponent).join('/')] = url;
+    imports[k] = url;
+    n += 1;
+  }
+  if (n === 0) return;
+  var s = document.createElement('script');
+  s.type = 'importmap';
+  s.textContent = JSON.stringify({ imports: imports });
+  (document.head || document.documentElement).appendChild(s);
+})();
+</script>
+<script>
+(function (variants) {
+  var seen = Object.create(null);
+  var add = function (href) {
+    variants(href).forEach(function (v) {
+      if (seen[v]) return;
+      seen[v] = 1;
+      var l = document.createElement('link');
+      l.rel = 'stylesheet';
+      l.href = v;
+      l.setAttribute('data-font-variant', '');
+      l.onerror = function () { l.remove(); };
+      document.head.appendChild(l);
+    });
+  };
+  /* a complete statement only: url(...) closed, or a whole quoted string - a helmet <style> streams in mid-URL */
+  var IMPORT = /@import\s+(?:url\(\s*(?:"([^"]*)"|'([^']*)'|([^"')\s]+))\s*\)|"([^"]*)"|'([^']*)')/g;
+  var scan = function (n) {
+    if (n.tagName === 'LINK' && !n.hasAttribute('data-font-variant') && /\bstylesheet\b/i.test(n.rel)) { seen[n.href] = 1; add(n.href); }
+    else if (n.tagName === 'STYLE') { var css = (n.textContent || '').replace(/\/\*[\s\S]*?\*\//g, ''), m; while ((m = IMPORT.exec(css))) add((m[1] || m[2] || m[3] || m[4] || m[5] || '').trim()); }
+  };
+  var rescan = function () { Array.prototype.forEach.call(document.head.children, scan); };
+  /* head children as they arrive, and a mounted <style> whose text is replaced in place (the helmet runtime streams it) */
+  new MutationObserver(function (rs) { rs.forEach(function (r) { var t = r.target.nodeType === 3 ? r.target.parentNode : r.target; if (t && t.tagName === 'STYLE') scan(t); else if (t === document.head) r.addedNodes.forEach(scan); }); }).observe(document.head, { childList: true, subtree: true, characterData: true });
+  document.addEventListener('DOMContentLoaded', rescan);
+  rescan();
+})(function (h) { return (function hYe(e,t){let n="https://fonts.googleapis.com/css2?";if(typeof e!="string"||e.length>1024||e.slice(0,n.length)!==n)return[];let r=e.slice(n.length).split("&");if(r.some(i=>i.slice(0,5)==="text="))return[];let o=[];for(let i of r){if(i.slice(0,7)!=="family=")continue;let s=o.length+16,a=i.slice(7).replace(/%20| /g,"+"),l=a.indexOf(":"),c=l<0?a:a.slice(0,l);if(!/^[A-Za-z0-9][A-Za-z0-9+._-]{0,99}$/.test(c))continue;let u=[["0","400"]];if(l>=0){let m=a.indexOf("@",l),b=a.slice(l+1,m<0?l:m).split(","),g=b.indexOf("ital"),h=b.indexOf("wght");if(m<0||b.some(y=>y!=="ital"&&y!=="wght"))continue;u=[];for(let y of a.slice(m+1).split(";")){let v=y.split(","),w=[g<0?"0":v[g]??"",h<0?"400":v[h]??""];if(v.length!==b.length||!/^[01]$/.test(w[0])||!/^[1-9]\d{0,3}(?:\.\.[1-9]\d{0,3})?$/.test(w[1])){u=[];break}u.push(w)}if(u.length===0)continue}let d=u.map(m=>m[0]+","+m[1]),f=t!==void 0&&Object.prototype.hasOwnProperty.call(t,c.replace(/\+/g," ").toLowerCase())?t[c.replace(/\+/g," ").toLowerCase()]:void 0,p;if(f!==void 0){let m=(b,g)=>u.some(h=>h[0]===b&&g>=Number(h[1].split("..")[0])&&g<=Number(h[1].split("..").pop()));p=[];for(let b of f.italic?["0","1"]:["0"]){if(f.wght===void 0){for(let h of f.statics??[])m(b,h)||p.push(b+","+String(h));continue}let g=0;for(let h=f.wght[0];h<=f.wght[1]+100;h+=100){let y=h<=f.wght[1]&&!m(b,h);y&&g===0&&(g=h),!y&&g!==0&&(p.push(b+","+String(g)+(h-100>g?".."+String(h-100):"")),g=0)}}}else{let m=g=>Number(g[1].split("..").pop())>=600,b=u.filter(g=>g[0]==="0");p=b.map(g=>"1,"+g[1]).concat(b.some(m)?[]:["0,700"],u.some(m)?[]:["1,700"])}for(let m of p){let b=n+"family="+c+":ital,wght@"+m+"&display=swap";d.indexOf(m)<0&&o.indexOf(b)<0&&o.length<s&&o.push(b)}}return o})(h, {"inter":{"wght":[100,900],"italic":true},"roboto":{"wght":[100,900],"italic":true},"open sans":{"wght":[300,800],"italic":true},"lato":{"statics":[100,300,400,700,900],"italic":true},"montserrat":{"wght":[100,900],"italic":true},"poppins":{"statics":[100,200,300,400,500,600,700,800,900],"italic":true},"raleway":{"wght":[100,900],"italic":true},"nunito":{"wght":[200,1000],"italic":true},"playfair display":{"wght":[400,900],"italic":true},"merriweather":{"wght":[300,900],"italic":true},"work sans":{"wght":[100,900],"italic":true},"dm sans":{"wght":[100,1000],"italic":true},"manrope":{"wght":[200,800],"italic":false},"space grotesk":{"wght":[300,700],"italic":false},"lora":{"wght":[400,700],"italic":true},"bebas neue":{"statics":[400],"italic":false},"caveat":{"wght":[400,700],"italic":false}}); });</script>
+<script src="https://a61feaa6-6393-40b7-91e2-519aa1532018.frame.claudeusercontent.com/_f/1790351886-beca/artifact-type/dc-runtime.js"></script><style>x-dc{display:none!important}</style>
+<script>(function (s) { if (!window.React || !window.ReactDOM || typeof window.__dcUpdate !== 'function') { try { s = s && s.previousElementSibling; window.parent.postMessage({ __dc_boot_failed: 1, e: 'the artboard runtime did not load', u: s && s.getAttribute('src') }, '*'); } catch (e) {} } })(document.currentScript);</script>
+<style data-dc-tpl="1">
+@font-face { font-family: 'DM Sans'; font-weight: 400; font-style: normal; src: url(/_blob/83f23a83e7ff7484b6e798de34e94f99) format('truetype'); }
+@font-face { font-family: 'DM Sans'; font-weight: 500; font-style: normal; src: url(/_blob/5a1cfd2ef0a33fcdc9e004cb05ee3000) format('truetype'); }
+@font-face { font-family: 'DM Sans'; font-weight: 600; font-style: normal; src: url(/_blob/984d483241c97f63438894569559a6a8) format('truetype'); }
+@font-face { font-family: 'DM Sans'; font-weight: 700; font-style: normal; src: url(/_blob/004191a7e26b0ce61e8ae9198979f4e7) format('truetype'); }
+@font-face { font-family: 'DM Sans'; font-weight: 800; font-style: normal; src: url(/_blob/09431a43993e055a94d271d9c648fc2f) format('truetype'); }
+@font-face { font-family: 'DM Sans'; font-weight: 400; font-style: italic; src: url(/_blob/2ae6eebf5d9bd1952603984c6db5f312) format('truetype'); }
+@font-face { font-family: 'DM Sans'; font-weight: 700; font-style: italic; src: url(/_blob/280bc6ee08d724b3f96b134ef2e0303c) format('truetype'); }
+@font-face { font-family: 'UthmanicHafs'; src: url(/_blob/1b3a98ed724bd5161609cb2f4b3c3bb8) format('truetype'); }
+body { margin: 0; }
+a { color: #26247B; } a:hover { color: #1F1D6A; }
+button { font-family: inherit; }
+</style><style data-dc-editor-style="">body:not([data-dc-editor-overlay-hidden]) [data-dc-editor-hover][data-dc-editor-hover-stroke]:not([data-dc-editor-selected]){filter:drop-shadow(0 0 calc(1*var(--dc-chrome-unit,1px)) color-mix(in srgb,#2a78d6 90%,transparent)) drop-shadow(0 0 calc(2*var(--dc-chrome-unit,1px)) color-mix(in srgb,#2a78d6 55%,transparent))!important;}body:not([data-dc-editor-overlay-hidden]):not([data-dc-editor-proxy="copy"]) [data-dc-editor-dragging],body:not([data-dc-editor-overlay-hidden]):not([data-dc-editor-proxy]) [data-dc-dragging],body[data-dc-editor-brk]:not([data-dc-editor-overlay-hidden]) [data-dc-drag-follower]{outline:calc(2*var(--dc-chrome-unit,1px)) solid #2a78d6!important;outline-offset:calc(-1*var(--dc-chrome-unit,1px))!important;opacity:0.55!important;}body[data-dc-editor-proxy="move"]:not([data-dc-editor-overlay-hidden]) [data-dc-editor-dragging],body[data-dc-editor-proxy="move"]:not([data-dc-editor-overlay-hidden]) [data-dc-dragging],body[data-dc-editor-proxy="move"]:not([data-dc-editor-overlay-hidden]) [data-dc-editor-dragging]>*,body[data-dc-editor-proxy="move"]:not([data-dc-editor-overlay-hidden]) [data-dc-dragging]>*{opacity:0!important;outline:none!important;}[data-dc-editor-drag-proxy],[data-dc-editor-drag-proxy] *{pointer-events:none!important;}body[data-dc-editor-on]:not([data-dc-editor-tool="interact"]) *{cursor:default!important;user-select:none!important;}body[data-dc-editor-on]:not([data-dc-editor-tool="interact"]) :not([data-dc-editor-overlay-root]):not([data-dc-editor-overlay-root] *){pointer-events:auto!important;transition:none!important;animation:none!important;}body[data-dc-editor-on][data-dc-editor-brk]:not([data-dc-editor-overlay-hidden]) [data-dc-editor-dragging]:not([data-dc-editor-overlay-root]) :not([data-dc-editor-overlay-root]),body[data-dc-editor-on][data-dc-editor-brk]:not([data-dc-editor-overlay-hidden]) [data-dc-dragging]:not([data-dc-editor-overlay-root]) :not([data-dc-editor-overlay-root]),body[data-dc-editor-on][data-dc-editor-brk]:not([data-dc-editor-overlay-hidden]) [data-dc-drag-follower]:not([data-dc-editor-overlay-root]),body[data-dc-editor-on][data-dc-editor-brk]:not([data-dc-editor-overlay-hidden]) [data-dc-drag-follower]:not([data-dc-editor-overlay-root]) :not([data-dc-editor-overlay-root]),body[data-dc-editor-move][data-dc-editor-brk]:not([data-dc-editor-overlay-hidden]) [data-dc-editor-dragging]:not([data-dc-editor-overlay-root]) :not([data-dc-editor-overlay-root]),body[data-dc-editor-move][data-dc-editor-brk]:not([data-dc-editor-overlay-hidden]) [data-dc-dragging]:not([data-dc-editor-overlay-root]) :not([data-dc-editor-overlay-root]),body[data-dc-editor-move][data-dc-editor-brk]:not([data-dc-editor-overlay-hidden]) [data-dc-drag-follower]:not([data-dc-editor-overlay-root]),body[data-dc-editor-move][data-dc-editor-brk]:not([data-dc-editor-overlay-hidden]) [data-dc-drag-follower]:not([data-dc-editor-overlay-root]) :not([data-dc-editor-overlay-root]){pointer-events:none!important;}body[data-dc-editor-move] :not([data-dc-editor-overlay-root]):not([data-dc-editor-overlay-root] *){pointer-events:auto!important;transition:none!important;animation-duration:0s!important;animation-delay:0s!important;}body[data-dc-editor-on][data-dc-editor-tool="rect"] *,body[data-dc-editor-on][data-dc-editor-tool="frame"] *,body[data-dc-editor-on][data-dc-editor-tool="grid"] *,body[data-dc-editor-on][data-dc-editor-tool="oval"] *,body[data-dc-editor-on][data-dc-editor-tool="arrow"] *,body[data-dc-editor-on][data-dc-editor-tool="line"] *{cursor:crosshair!important;}body[data-dc-editor-on][data-dc-editor-tool="text"] *{cursor:text!important;}body[data-dc-editor-on][data-dc-editor-tool="draw"] *{cursor:url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2016%2016%22%3E%3Cpath%20d=%22M2%2014l1-4%208-8a2.1%202.1%200%200%201%203%203l-8%208-4%201z%22%20fill=%22%23333%22%20stroke=%22%23fff%22%20stroke-width=%221%22/%3E%3C/svg%3E') 1 15, crosshair!important;}body[data-dc-editor-on]:not([data-dc-editor-tool]) [data-drags-parent],body[data-dc-editor-on]:not([data-dc-editor-tool]) [data-drags-parent] *{cursor:grab!important;}body[data-dc-editor-on]:not([data-dc-editor-tool]) [data-drags-parent]:active,body[data-dc-editor-on]:not([data-dc-editor-tool]) [data-drags-parent]:active *{cursor:grabbing!important;}body[data-dc-editor-on] [data-dc-editor-editing][contenteditable][contenteditable],body[data-dc-editor-on] [data-dc-editor-editing][contenteditable][contenteditable] *,body[data-dc-editor-on] [data-dc-editor-svg-editing]{cursor:text!important;}html:not([data-dc-canvas]):has(body[data-dc-editor-on]:not([data-dc-capturing]) .sc-host){background:var(--dc-editor-backdrop,#ededeb);}html:not([data-dc-canvas]) body[data-dc-editor-on]:not([data-dc-capturing]):has(.sc-host){background:var(--dc-editor-backdrop,#ededeb);}html:not([data-dc-canvas]) body[data-dc-editor-on] .sc-host:not(.sc-host .sc-host){min-height:calc(100vh - var(--dc-editor-host-vpad,0px));}html:not([data-dc-canvas]) body[data-dc-editor-on]:not([data-dc-capturing]) .sc-host:not(.sc-host .sc-host){background:var(--dc-editor-host-bg,#fff);}html[data-dc-frameless],html[data-dc-frameless] body[data-dc-editor-on],html[data-dc-frameless] body[data-dc-editor-on] .sc-host:not(.sc-host .sc-host){background:transparent!important;min-height:0!important;}html:has(body[data-dc-capturing]),body[data-dc-capturing]{transition:none!important;}html[data-dc-canvas]{overflow:hidden;}html[data-dc-canvas] body[data-dc-editor-on] .sc-host:not(.sc-host .sc-host)::before{content:"";position:absolute;left:-100000px;top:-100000px;width:200000px;height:200000px;pointer-events:none;background:repeating-linear-gradient(45deg,var(--dc-editor-hatch-ink,rgba(0,0,0,.05)) 0 8px,transparent 8px 16px);clip-path:polygon(0 0,100% 0,100% 50%,50% 50%,50% 100%,0 100%);}</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="E3_Termin_waehlen"><div data-dc-tpl="2" style="width: 390px; height: 844px; position: relative; overflow: hidden; box-sizing: border-box; font-family: &quot;DM Sans&quot;, -apple-system, system-ui, sans-serif; color: rgb(17, 24, 39); line-height: 1.3; background: radial-gradient(420px 420px at 92% 10%, rgba(99, 56, 140, 0.09), rgba(99, 56, 140, 0) 70%), radial-gradient(440px 440px at 4% 50%, rgba(0, 127, 165, 0.07), rgba(0, 127, 165, 0) 70%), radial-gradient(360px 360px at 90% 94%, rgba(99, 56, 140, 0.09), rgba(99, 56, 140, 0) 70%), radial-gradient(340px 340px at 10% 92%, rgba(185, 159, 111, 0.12), rgba(185, 159, 111, 0) 70%), linear-gradient(135deg, rgb(232, 228, 240) 0%, rgb(245, 243, 248) 50%, rgb(224, 232, 245) 100%); display: flex; flex-direction: column;"><header data-dc-tpl="3" style="padding-top: 54px; flex-shrink: 0;"><div data-dc-tpl="4" style="height: 56px; display: flex; align-items: center;"><button data-dc-tpl="5" type="button" aria-label="Zurück" style="width: 54px; height: 54px; display: flex; align-items: center; justify-content: center; text-decoration: none; background: transparent; border: 0px; padding: 0px; cursor: pointer;"><svg data-dc-tpl="6" width="22" height="22" viewBox="0 0 24 24" fill="#111827" aria-hidden="true" style="display: block; flex-shrink: 0;"><path data-dc-tpl="7" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"></path></svg></button><h1 data-dc-tpl="8" style="flex-grow: 1; margin: 0px; text-align: center; font-size: 18px; font-weight: 600; color: rgb(17, 24, 39);">Live-Session</h1><div data-dc-tpl="9" style="width: 54px;"></div></div></header><main data-dc-tpl="10" style="flex-grow: 1; padding: 16px 20px 0px; display: flex; flex-direction: column;"><div data-dc-tpl="11" style="background: rgb(255, 255, 255); border: 1px solid rgb(234, 232, 240); border-radius: 16px; padding: 16px; box-sizing: border-box;"><div data-dc-tpl="12" style="display: flex; gap: 12px; align-items: flex-start;"><span data-dc-tpl="13" style="width: 40px; height: 40px; border-radius: 50%; background: rgb(224, 245, 245); display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg data-dc-tpl="14" width="20" height="20" viewBox="0 0 24 24" fill="#00797C" aria-hidden="true" style="display: block; flex-shrink: 0;"><path data-dc-tpl="15" d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"></path></svg></span><div data-dc-tpl="16" style="display: flex; flex-direction: column; gap: 4px;"><span data-dc-tpl="17" style="font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: rgb(0, 121, 124);">Geschenkt</span><span data-dc-tpl="18" style="font-size: 18px; font-weight: 700; color: rgb(17, 24, 39);">Deine Live-Session</span><span data-dc-tpl="19" style="font-size: 14px; line-height: 1.45; color: rgb(107, 114, 128);">45 Minuten mit unseren Lehrern in einer kleinen Gruppe. Bring deine Fragen mit.</span></div></div></div><div data-dc-tpl="20" style="margin-top: 24px;"><h3 data-dc-tpl="21" style="margin: 0px; padding-left: 4px; font-size: 12px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: rgb(107, 114, 128);">Nächste Woche</h3></div><div data-dc-tpl="22" style="margin-top: 12px; display: flex; flex-direction: column; gap: 10px;"><button data-dc-tpl="23" type="button" aria-pressed="true" style="display: flex; align-items: center; gap: 14px; width: 100%; box-sizing: border-box; padding: 12px 16px; border-radius: 16px; border: 1.5px solid rgb(38, 36, 123); background: rgb(239, 240, 255); font-family: &quot;DM Sans&quot;, -apple-system, system-ui, sans-serif; text-align: left; cursor: pointer;"><span data-dc-tpl="24" style="width: 44px; display: flex; flex-direction: column; align-items: center; flex-shrink: 0;"><span data-dc-tpl="25" style="font-size: 12px; font-weight: 700; letter-spacing: 0.5px; color: rgb(107, 114, 128);">DI</span><span data-dc-tpl="26" style="font-size: 22px; font-weight: 800; line-height: 1.1; color: rgb(17, 24, 39);">29</span></span><span data-dc-tpl="27" style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;"><span data-dc-tpl="28" style="font-size: 16px; font-weight: 700; color: rgb(17, 24, 39);">19:00 – 19:45 Uhr</span><span data-dc-tpl="29" style="font-size: 14px; color: rgb(107, 114, 128);">mit Ustadh Bilal · 45 Min.</span></span><span data-dc-tpl="30" style="width: 22px; height: 22px; border-radius: 50%; box-sizing: border-box; flex-shrink: 0; border: 6px solid rgb(38, 36, 123); background: rgb(255, 255, 255);"></span></button><button data-dc-tpl="31" type="button" aria-pressed="false" style="display: flex; align-items: center; gap: 14px; width: 100%; box-sizing: border-box; padding: 12px 16px; border-radius: 16px; border: 1px solid rgb(234, 232, 240); background: rgb(255, 255, 255); font-family: &quot;DM Sans&quot;, -apple-system, system-ui, sans-serif; text-align: left; cursor: pointer;"><span data-dc-tpl="32" style="width: 44px; display: flex; flex-direction: column; align-items: center; flex-shrink: 0;"><span data-dc-tpl="33" style="font-size: 12px; font-weight: 700; letter-spacing: 0.5px; color: rgb(107, 114, 128);">MI</span><span data-dc-tpl="34" style="font-size: 22px; font-weight: 800; line-height: 1.1; color: rgb(17, 24, 39);">30</span></span><span data-dc-tpl="35" style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;"><span data-dc-tpl="36" style="font-size: 16px; font-weight: 700; color: rgb(17, 24, 39);">18:00 – 18:45 Uhr</span><span data-dc-tpl="37" style="font-size: 14px; color: rgb(107, 114, 128);">mit Ustadha Maryam · 45 Min.</span></span><span data-dc-tpl="38" style="width: 22px; height: 22px; border-radius: 50%; box-sizing: border-box; flex-shrink: 0; border: 2px solid rgb(193, 192, 201);"></span></button><button data-dc-tpl="39" type="button" aria-pressed="false" style="display: flex; align-items: center; gap: 14px; width: 100%; box-sizing: border-box; padding: 12px 16px; border-radius: 16px; border: 1px solid rgb(234, 232, 240); background: rgb(255, 255, 255); font-family: &quot;DM Sans&quot;, -apple-system, system-ui, sans-serif; text-align: left; cursor: pointer;"><span data-dc-tpl="40" style="width: 44px; display: flex; flex-direction: column; align-items: center; flex-shrink: 0;"><span data-dc-tpl="41" style="font-size: 12px; font-weight: 700; letter-spacing: 0.5px; color: rgb(107, 114, 128);">DO</span><span data-dc-tpl="42" style="font-size: 22px; font-weight: 800; line-height: 1.1; color: rgb(17, 24, 39);">1</span></span><span data-dc-tpl="43" style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;"><span data-dc-tpl="44" style="font-size: 16px; font-weight: 700; color: rgb(17, 24, 39);">19:00 – 19:45 Uhr</span><span data-dc-tpl="45" style="font-size: 14px; color: rgb(107, 114, 128);">mit Ustadh Bilal · 45 Min.</span></span><span data-dc-tpl="46" style="width: 22px; height: 22px; border-radius: 50%; box-sizing: border-box; flex-shrink: 0; border: 2px solid rgb(193, 192, 201);"></span></button><button data-dc-tpl="47" type="button" aria-pressed="false" style="display: flex; align-items: center; gap: 14px; width: 100%; box-sizing: border-box; padding: 12px 16px; border-radius: 16px; border: 1px solid rgb(234, 232, 240); background: rgb(255, 255, 255); font-family: &quot;DM Sans&quot;, -apple-system, system-ui, sans-serif; text-align: left; cursor: pointer;"><span data-dc-tpl="48" style="width: 44px; display: flex; flex-direction: column; align-items: center; flex-shrink: 0;"><span data-dc-tpl="49" style="font-size: 12px; font-weight: 700; letter-spacing: 0.5px; color: rgb(107, 114, 128);">SA</span><span data-dc-tpl="50" style="font-size: 22px; font-weight: 800; line-height: 1.1; color: rgb(17, 24, 39);">3</span></span><span data-dc-tpl="51" style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;"><span data-dc-tpl="52" style="font-size: 16px; font-weight: 700; color: rgb(17, 24, 39);">11:00 – 11:45 Uhr</span><span data-dc-tpl="53" style="font-size: 14px; color: rgb(107, 114, 128);">mit Ustadha Maryam · 45 Min.</span></span><span data-dc-tpl="54" style="width: 22px; height: 22px; border-radius: 50%; box-sizing: border-box; flex-shrink: 0; border: 2px solid rgb(193, 192, 201);"></span></button><button data-dc-tpl="55" type="button" aria-pressed="false" style="display: flex; align-items: center; gap: 14px; width: 100%; box-sizing: border-box; padding: 12px 16px; border-radius: 16px; border: 1px solid rgb(234, 232, 240); background: rgb(255, 255, 255); font-family: &quot;DM Sans&quot;, -apple-system, system-ui, sans-serif; text-align: left; cursor: pointer;"><span data-dc-tpl="56" style="width: 44px; display: flex; flex-direction: column; align-items: center; flex-shrink: 0;"><span data-dc-tpl="57" style="font-size: 12px; font-weight: 700; letter-spacing: 0.5px; color: rgb(107, 114, 128);">SO</span><span data-dc-tpl="58" style="font-size: 22px; font-weight: 800; line-height: 1.1; color: rgb(17, 24, 39);">4</span></span><span data-dc-tpl="59" style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;"><span data-dc-tpl="60" style="font-size: 16px; font-weight: 700; color: rgb(17, 24, 39);">17:00 – 17:45 Uhr</span><span data-dc-tpl="61" style="font-size: 14px; color: rgb(107, 114, 128);">mit Ustadh Yusuf · 45 Min.</span></span><span data-dc-tpl="62" style="width: 22px; height: 22px; border-radius: 50%; box-sizing: border-box; flex-shrink: 0; border: 2px solid rgb(193, 192, 201);"></span></button></div></main><footer data-dc-tpl="63" style="flex-shrink: 0; padding: 16px 16px 58px;"><a data-dc-tpl="64" href="https://a61feaa6-6393-40b7-91e2-519aa1532018.frame.claudeusercontent.com/appifact/E4_Gebucht.dc.html" style="display: flex; align-items: center; justify-content: center; gap: 8px; box-sizing: border-box; width: 100%; padding: 16px; border-radius: 16px; background: rgb(38, 36, 123); border: 2px solid rgb(38, 36, 123); color: rgb(255, 255, 255); font-family: &quot;DM Sans&quot;, -apple-system, system-ui, sans-serif; font-size: 16px; font-weight: 800; line-height: 1.3; text-decoration: none; text-align: center; cursor: pointer;"><span data-dc-tpl="65">TERMIN RESERVIEREN</span></a></footer></div></div></div>
+<script type="text/x-dc" data-dc-script="" data-props="{&quot;$preview&quot;: {&quot;width&quot;: 390, &quot;height&quot;: 844}}">
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+
+
+</body></html>
