@@ -15,7 +15,8 @@ Gestaltet nach den „German Method – In-App-Käufe Screens“.
 3. **Lernen:** Die Lerneinheit wird wie im blauen Medina-Mushaf dargestellt
    (Zeilen, Blocksatz und Wortpositionen wie auf der gedruckten Seite). ▶ spielt
    nur diesen Abschnitt und stoppt am Ende; Pause, „Von vorn“ und Tippen auf einen
-   Vers (spielt ab diesem Vers) sind möglich.
+   Vers (spielt ab diesem Vers) sind möglich. Die Verse werden lückenlos in einem
+   Rutsch abgespielt (Web Audio, Stille zwischen den Versdateien wird gekürzt).
 4. **„Gelernt“:** Von jedem fünften Wort wird ein Fünftel ausgegraut
    (`opacity: 0.1`, der Buchstabenfluss bleibt erhalten). Bei jedem weiteren Klick
    verliert jedes angefangene Wort ein weiteres Fünftel, und von den noch
@@ -37,6 +38,12 @@ npx serve .
 
 Zum Ausprobieren lassen sich die Pausen verkürzen: `index.html?timer=5`
 (jede Pause dauert dann 5 Sekunden).
+
+**Audio:** Auf Vercel werden die Versdateien über `/audio/…` (everyayah.com) und
+`/audio-alt/…` (cdn.islamic.network) von der eigenen Domain ausgeliefert
+(`vercel.json`). Nur so darf der Browser die Audiodaten lesen und die Verse ohne
+Pause aneinanderfügen. Lokal gibt es diese Weiterleitung nicht; dann spielt die
+App die Verse über ein normales `<audio>`-Element nacheinander (mit kurzen Pausen).
 
 ## Aufbau
 

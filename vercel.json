@@ -1,9 +1,21 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    { "source": "/audio/:path*", "destination": "https://everyayah.com/data/:path*" },
+    { "source": "/audio-alt/:path*", "destination": "https://cdn.islamic.network/quran/audio/:path*" }
+  ],
   "headers": [
     {
       "source": "/uthmanic.woff2",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/audio/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=2592000, immutable" }]
+    },
+    {
+      "source": "/audio-alt/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=2592000, immutable" }]
     }
   ]
 }

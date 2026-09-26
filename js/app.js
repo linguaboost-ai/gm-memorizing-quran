@@ -601,38 +601,53 @@
 
   /* ------------------------------------------------------------------- Player */
 
-  function playerHtml() {
+  function barFill(i) {
     const st = player.status;
-    const q = player.queue.length || 1;
-    const busy = st === "loading";
-    const playing = st === "playing" || busy;
-    const frac = st === "ended" ? 1 : st === "idle" ? 0 : (player.index + player.progress) / q;
-    const bars = BAR_HEIGHTS.map((h, i) => {
-      const a = i / BAR_HEIGHTS.length;
-      const b = (i + 1) / BAR_HEIGHTS.length;
-      const fill = frac >= b ? 100 : frac <= a ? 0 : ((frac - a) / (b - a)) * 100;
-      return `<span data-action="seek" data-value="${i}" style="height:${h}px"><i style="width:${fill}%"></i></span>`;
-    }).join("");
+    const frac = st === "ended" ? 1 : st === "idle" ? 0 : (player.index + player.progress) / (player.queue.length || 1);
+    const a = i / BAR_HEIGHTS.length;
+    const b = (i + 1) / BAR_HEIGHTS.length;
+    return frac >= b ? 100 : frac <= a ? 0 : ((frac - a) / (b - a)) * 100;
+  }
+
+  function playerMeta() {
+    const st = player.status;
     const c = player.current;
     const verses = player.queue.filter((x) => !x.basmala);
-    let meta;
-    if (st === "idle") meta = `${verses.length} ${verses.length === 1 ? "Vers" : "Verse"}`;
-    else if (st === "ended") meta = "Fertig";
-    else if (c && c.basmala) meta = "Basmala";
-    else if (c) meta = `Vers ${c.ayah - player.from + 1} / ${verses.length}`;
-    else meta = "";
+    if (st === "idle") return `${verses.length} ${verses.length === 1 ? "Vers" : "Verse"}`;
+    if (st === "ended") return "Fertig";
+    if (c && c.basmala) return "Basmala";
+    if (c) return `Vers ${c.ayah - player.from + 1} / ${verses.length}`;
+    return "";
+  }
+
+  function playerHtml() {
+    const st = player.status;
+    const busy = st === "loading";
+    const playing = st === "playing" || busy;
+    const bars = BAR_HEIGHTS.map((h, i) => `<span data-action="seek" data-value="${i}" style="height:${h}px"><i style="width:${barFill(i)}%"></i></span>`).join("");
     return `
       <button class="play-btn ${busy ? "loading" : ""}" data-action="play" aria-label="${playing ? "Pause" : "Abspielen"}">${icon(busy ? "loading" : playing ? "pause" : st === "ended" ? "replay" : "play")}</button>
       <div class="bars" aria-hidden="true">${bars}</div>
-      <div class="player-meta"><b>${meta}</b>
+      <div class="player-meta"><b>${playerMeta()}</b>
         <button class="restart-btn" data-action="restart" ${st === "idle" ? "hidden" : ""}>${icon("replay")} Von vorn</button>
       </div>`;
   }
 
   let lastActive = null;
+  let lastPlayerStatus = null;
+  /** Bei Statuswechsel den Player neu zeichnen, sonst nur Fortschritt und Versanzeige. */
   function updatePlayerUi() {
     const el = document.getElementById("player");
-    if (el) el.innerHTML = playerHtml();
+    if (el) {
+      if (player.status !== lastPlayerStatus || !el.firstElementChild) {
+        lastPlayerStatus = player.status;
+        el.innerHTML = playerHtml();
+      } else {
+        el.querySelectorAll(".bars i").forEach((bar, i) => (bar.style.width = barFill(i) + "%"));
+        const meta = el.querySelector(".player-meta b");
+        if (meta) meta.textContent = playerMeta();
+      }
+    }
     const err = document.getElementById("player-error");
     if (err) err.hidden = player.status !== "error";
     const active = player.activeAyah;
