@@ -32,6 +32,8 @@
   const KEEP_LEAD = 0.03;
   const KEEP_TAIL = 0.1;
   const PREFETCH = 4;
+  // Anschluss: nach den ersten Wörtern des nächsten Verses so lange ausblenden
+  const TAIL_FADE = 0.1;
 
   const pad3 = (n) => String(n).padStart(3, "0");
   const reciterById = (id) => RECITERS.find((r) => r.id === id) || RECITERS[0];
@@ -76,8 +78,14 @@
     if (last <= first) return buf;
     const start = Math.max(0, first - Math.round(KEEP_LEAD * sr));
     const end = Math.min(n, last + Math.round(KEEP_TAIL * sr));
-    if (start === 0 && end === n) return buf;
+    // Bereich der Stimme im gekürzten Puffer (Sekunden)
+    const voice = [(first - start) / sr, (last - start) / sr];
+    if (start === 0 && end === n) {
+      buf.voice = voice;
+      return buf;
+    }
     const out = ctx.createBuffer(channels.length, end - start, sr);
+    out.voice = voice;
     const fade = Math.min(Math.round(0.008 * sr), Math.floor((end - start) / 4));
     channels.forEach((d, c) => {
       const o = out.getChannelData(c);
@@ -88,6 +96,75 @@
       }
     });
     return out;
+  }
+
+  /*
+   * Anschluss-Schnitt: Wo endet im Audio das letzte Anschlusswort?
+   *
+   * Für die Rezitationen gibt es keine Wort-Zeitstempel. Wir schätzen die
+   * Stelle aus dem Text (Dauer in Silbenschlägen: Harakat, Sukun, Shadda,
+   * Madd-Dehnungen, Dehnung beim Innehalten am Versende) und setzen den
+   * Schnitt dann an die leiseste Stelle in der Nähe – eine Silbengrenze.
+   */
+  const SHORT_VOWEL = /[\u064E\u064F\u0650]/;
+  const TANWEEN = /[\u064B-\u064D\u08F0-\u08F2]/;
+  const SUKUN = /[\u0652\u06E1]/;
+  const SILENT = /[\u06DF\u06E0]/;
+  const MADD_LETTER = /[\u0627\u0648\u064A\u0649\u06E5\u06E6]/;
+
+  function wordBeats(word, isFirst, isLast) {
+    let beats = 0;
+    window.Fade.analyze(word).clusters.forEach((cl, i) => {
+      const base = cl[0];
+      const marks = cl.slice(1).join("");
+      let b;
+      if (SILENT.test(marks)) b = 0;
+      else if (SHORT_VOWEL.test(marks)) b = 1;
+      else if (TANWEEN.test(marks)) b = 1.5;
+      else if (SUKUN.test(marks)) b = 0.5;
+      else if (base === "\u0671") b = isFirst && i === 0 ? 1 : 0; // Hamzat al-Wasl (am Versanfang gesprochen)
+      else if (MADD_LETTER.test(base)) b = 1; // Dehnungsbuchstabe
+      else b = 0.5;
+      if (marks.includes("\u0651")) b += /[\u0645\u0646]/.test(base) ? 1.5 : 0.5; // Shadda (mit Ghunna)
+      if (marks.includes("\u0670")) b += 1; // kleines Alif
+      if (marks.includes("\u0653")) b += 3; // Madd-Zeichen
+      beats += b;
+    });
+    return beats + (isLast ? 2 : 0); // Innehalten am Versende
+  }
+
+  /** Anteil der ersten `k` Wörter an der Sprechdauer des Verses (0–1). */
+  function firstWordsFraction(words, k) {
+    if (!words || words.length <= k) return 1;
+    const beats = words.map((w, i) => wordBeats(w, i === 0, i === words.length - 1));
+    const total = beats.reduce((a, b) => a + b, 0);
+    return total ? beats.slice(0, k).reduce((a, b) => a + b, 0) / total : 1;
+  }
+
+  /** Zeitpunkt (s) im Puffer, an dem ausgeblendet wird. */
+  function tailCut(buf, fraction) {
+    if (fraction >= 1) return Math.max(0, buf.duration - TAIL_FADE);
+    const [vs, ve] = buf.voice || [0, buf.duration];
+    // leicht nach hinten versetzt: lieber das letzte Wort ganz als abgeschnitten
+    const estimate = vs + fraction * (ve - vs) + 0.04;
+    const data = buf.getChannelData(0);
+    const sr = buf.sampleRate;
+    const half = Math.round(0.01 * sr);
+    const range = Math.min(0.2, Math.max(0.08, (ve - vs) * 0.04));
+    let best = estimate;
+    let bestScore = Infinity;
+    for (let t = estimate - range; t <= estimate + range; t += 0.005) {
+      const c = Math.round(t * sr);
+      if (c - half < 0 || c + half >= data.length) continue;
+      let e = 0;
+      for (let i = c - half; i < c + half; i++) e += data[i] * data[i];
+      const score = e * (1 + (0.6 * Math.abs(t - estimate)) / range);
+      if (score < bestScore) {
+        bestScore = score;
+        best = t;
+      }
+    }
+    return Math.max(0.05, Math.min(buf.duration - TAIL_FADE, best));
   }
 
   class Player {
@@ -111,8 +188,11 @@
       this.onChange(this, "status");
     }
 
-    /** Bereich festlegen (stoppt die Wiedergabe). */
-    load(reciterId, surah, from, to) {
+    /**
+     * Bereich festlegen (stoppt die Wiedergabe).
+     * tail: { ayah, words, verseWords } – Anfang des nächsten Verses als Anschluss
+     */
+    load(reciterId, surah, from, to, tail) {
       this.stop();
       this.reciter = reciterById(reciterId);
       this.surah = surah;
@@ -121,6 +201,7 @@
       this.queue = [];
       if (from === 1 && surah !== 1 && surah !== 9) this.queue.push({ surah: 1, ayah: 1, basmala: true });
       for (let a = from; a <= to; a++) this.queue.push({ surah, ayah: a });
+      if (tail) this.queue.push({ surah, ayah: tail.ayah, tail: true, fraction: firstWordsFraction(tail.verseWords, tail.words) });
       // Nur die Verse dieses Abschnitts im Speicher behalten
       const keep = new Set(this.queue.map((q) => this.key(q)));
       for (const k of Array.from(this.buffers.keys())) if (!keep.has(k)) this.buffers.delete(k);
@@ -137,7 +218,7 @@
     /** Aktuell rezitierter Vers (null während der Basmala oder im Stillstand). */
     get activeAyah() {
       const c = this.current;
-      if (!c || c.basmala || this.status === "idle" || this.status === "ended") return null;
+      if (!c || c.basmala || c.tail || this.status === "idle" || this.status === "ended") return null;
       return c.ayah;
     }
 
@@ -270,10 +351,24 @@
         if (when === null || when < now + 0.02) when = now + 0.06;
         const src = ctx.createBufferSource();
         src.buffer = buf;
-        src.connect(ctx.destination);
-        src.start(when);
-        session.entries.push({ index: j, when, dur: buf.duration, src });
-        when += buf.duration;
+        let dur = buf.duration;
+        const item = this.queue[j];
+        if (item.tail) {
+          // Nur bis zum Ende der Anschlusswörter, dann über 100 ms ausblenden
+          const cut = tailCut(buf, item.fraction);
+          const gain = ctx.createGain();
+          gain.gain.setValueAtTime(1, when + cut);
+          gain.gain.linearRampToValueAtTime(0, when + cut + TAIL_FADE);
+          src.connect(gain);
+          gain.connect(ctx.destination);
+          dur = Math.min(buf.duration, cut + TAIL_FADE);
+          src.start(when, 0, dur);
+        } else {
+          src.connect(ctx.destination);
+          src.start(when);
+        }
+        session.entries.push({ index: j, when, dur, src });
+        when += dur;
         session.endTime = when;
       }
       session.done = true;
@@ -390,9 +485,41 @@
         this.warm.src = sources(this.reciter, n.surah, n.ayah, true)[0];
         this.warm.load();
       }
+      if (c.tail && c.fraction < 1) this.elWatchTail(c);
+    }
+
+    /** Ersatz ohne Web Audio: Anschluss grob nach Textanteil abbrechen und ausblenden. */
+    elWatchTail(item) {
+      const el = this.el;
+      const watch = () => {
+        if (this.current !== item || this.status === "idle" || this.status === "ended") return;
+        const d = el.duration;
+        if (d && isFinite(d) && el.currentTime >= item.fraction * d) {
+          const t0 = performance.now();
+          const fade = setInterval(() => {
+            const k = (performance.now() - t0) / (TAIL_FADE * 1000);
+            if (k >= 1 || this.current !== item) {
+              clearInterval(fade);
+              el.pause();
+              el.volume = 1;
+              if (this.current === item) {
+                this.index = 0;
+                this.progress = 0;
+                this.set("ended");
+              }
+            } else {
+              el.volume = Math.max(0, 1 - k);
+            }
+          }, 10);
+          return;
+        }
+        requestAnimationFrame(watch);
+      };
+      requestAnimationFrame(watch);
     }
   }
 
   window.Reciters = { list: RECITERS, byId: reciterById };
   window.Player = Player;
+  Player.estimate = { firstWordsFraction, tailCut };
 })();

@@ -28,7 +28,8 @@
   function tokenHtml(token, ctx) {
     const inRange = token.ayah >= ctx.from && token.ayah <= ctx.to;
     const cls = ["t"];
-    if (!inRange) cls.push("out");
+    if (ctx.tail.has(token)) cls.push("next");
+    else if (!inRange) cls.push("out");
     if (token.ayah === ctx.activeAyah && inRange) cls.push("active");
     const data = inRange ? ` data-ayah="${token.ayah}"` : "";
     if (token.type === TOKEN_AYAH_END) {
@@ -59,13 +60,14 @@
 
   /**
    * @param {object} surah   vorbereitete Sure (Quran.load)
-   * @param {object} opts    { from, to, levels, shapes, firstId, activeAyah }
+   * @param {object} opts    { from, to, levels, shapes, firstId, activeAyah, tail }
+   *                          tail: Anschluss-Tokens des nächsten Verses (werden normal gezeigt)
    */
   function html(surah, opts) {
-    const ctx = opts;
+    const ctx = Object.assign({}, opts, { tail: new Set(opts.tail || []) });
     const lines = surah.lines.filter((l) => {
       if (l.kind !== "t") return ctx.from === 1;
-      return l.tokens.some((t) => t.ayah >= ctx.from && t.ayah <= ctx.to);
+      return l.tokens.some((t) => (t.ayah >= ctx.from && t.ayah <= ctx.to) || ctx.tail.has(t));
     });
     const pages = [];
     for (const l of lines) {

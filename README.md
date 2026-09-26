@@ -17,6 +17,10 @@ Gestaltet nach den „German Method – In-App-Käufe Screens“.
    nur diesen Abschnitt und stoppt am Ende; Pause, „Von vorn“ und Tippen auf einen
    Vers (spielt ab diesem Vers) sind möglich. Die Verse werden lückenlos in einem
    Rutsch abgespielt (Web Audio, Stille zwischen den Versdateien wird gekürzt).
+   Als Anschluss werden die ersten drei Wörter des nächsten Verses blau mit
+   angezeigt und mitrezitiert; danach wird über 100 ms ausgeblendet. Da es für
+   die Rezitationen keine Wort-Zeitstempel gibt, wird das Wortende geschätzt
+   (Sprechdauer aus dem Text, Schnitt an der leisesten Stelle in der Nähe).
 4. **„Gelernt“:** Bei jedem Wort wird ein Fünftel der Zeichen ausgegraut
    (`opacity: 0.1`, der Buchstabenfluss bleibt erhalten), vom Wortende her und
    abgerundet – im Zweifel bleibt ein Zeichen mehr sichtbar. Buchstaben und

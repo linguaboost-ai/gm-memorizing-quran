@@ -953,6 +953,12 @@ button {
   color: var(--muted);
 }
 
+.range-caption .next-note {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--m-blue-2);
+}
+
 .range-caption {
   font-size: 13px;
   font-weight: 600;
@@ -1044,6 +1050,11 @@ button {
 
 .ml .out {
   visibility: hidden;
+}
+
+/* Anschluss: die ersten Wörter des nächsten Verses */
+.ml .next {
+  color: var(--m-blue-2);
 }
 
 .ml .active {

@@ -23,6 +23,7 @@
   const DAILY_OPTIONS = [0.5, 1, 2];
   const CHUNK_OPTIONS = [0.25, 0.5, 1, 2];
   const DEFAULT_SURAH = 67;
+  const TAIL_WORDS = 3;
 
   const ICONS = {
     close: "M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z",
@@ -139,6 +140,8 @@
       shapes,
       totals: shapes.map((w) => w.total),
       firstId: words[0].id,
+      // Anschluss: die ersten drei Wörter des nächsten Verses
+      tail: Quran.tailOf(ctx.surah, chunk.to, TAIL_WORDS),
     };
     chunkCache.set(key, info);
     return info;
@@ -517,7 +520,7 @@
       ${segmentsHtml(s, info)}
       <main class="content">
         <div class="status-row"><div class="left">${status}</div>${undo}</div>
-        <div class="range-caption">${esc(ctx.surah.meta.tr)} · ${versesLabel(chunk.from, chunk.to)} · ${pageSpan(ctx.surah, chunk.from, chunk.to)}</div>
+        <div class="range-caption">${esc(ctx.surah.meta.tr)} · ${versesLabel(chunk.from, chunk.to)} · ${pageSpan(ctx.surah, chunk.from, chunk.to)}${info.tail ? `<br><span class="next-note">Blau: Anfang von Vers ${info.tail.ayah} als Anschluss</span>` : ""}</div>
         <div class="mushaf" id="mushaf">${mushafHtml()}</div>
       </main>
       <footer class="footer">
@@ -551,6 +554,7 @@
       shapes: info.shapes,
       firstId: info.firstId,
       activeAyah: player.activeAyah,
+      tail: info.tail ? info.tail.tokens : [],
     });
   }
 
@@ -561,7 +565,10 @@
     Mushaf.fit(el, ctx.surah);
     const reciter = state.plan.reciter;
     const same = player.surah === ctx.surah.n && player.from === info.chunk.from && player.to === info.chunk.to && player.reciter && player.reciter.id === reciter;
-    if (!same) player.load(reciter, ctx.surah.n, info.chunk.from, info.chunk.to);
+    if (!same) {
+      const tail = info.tail && { ayah: info.tail.ayah, words: info.tail.complete ? info.tail.verseWords.length : TAIL_WORDS, verseWords: info.tail.verseWords };
+      player.load(reciter, ctx.surah.n, info.chunk.from, info.chunk.to, tail);
+    }
     updatePlayerUi();
   }
 
@@ -612,10 +619,11 @@
   function playerMeta() {
     const st = player.status;
     const c = player.current;
-    const verses = player.queue.filter((x) => !x.basmala);
+    const verses = player.queue.filter((x) => !x.basmala && !x.tail);
     if (st === "idle") return `${verses.length} ${verses.length === 1 ? "Vers" : "Verse"}`;
     if (st === "ended") return "Fertig";
     if (c && c.basmala) return "Basmala";
+    if (c && c.tail) return "Anschluss";
     if (c) return `Vers ${c.ayah - player.from + 1} / ${verses.length}`;
     return "";
   }

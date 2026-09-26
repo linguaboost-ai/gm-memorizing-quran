@@ -177,6 +177,27 @@
     return out;
   }
 
+  /**
+   * Anschluss: die ersten `n` Wörter des Verses nach `to` (samt davorstehender
+   * Zeichen wie ۞). Hat der Vers höchstens `n` Wörter, gehört er ganz dazu.
+   */
+  function tailOf(surah, to, n = 3) {
+    const next = surah.ayahs[to];
+    if (!next) return null;
+    const tokens = [];
+    let words = 0;
+    let complete = true;
+    for (const t of next.tokens) {
+      if (t.type === TOKEN_WORD && words === n) {
+        complete = false;
+        break;
+      }
+      if (t.type === TOKEN_WORD) words++;
+      tokens.push(t);
+    }
+    return { ayah: next.n, tokens, complete, verseWords: next.tokens.filter((t) => t.type === TOKEN_WORD).map((t) => t.text) };
+  }
+
   /** Globale Versnummer (1–6236), z. B. für alternative Audioquellen. */
   function globalAyah(n, a) {
     let sum = 0;
@@ -196,6 +217,7 @@
     divide,
     rangeSize,
     wordsOf,
+    tailOf,
     globalAyah,
     basmala: window.QURAN_BASMALA,
   };
