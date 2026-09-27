@@ -21,10 +21,17 @@ const d = JSON.parse(readFileSync(join(pkgDir, "data/hafs.json"), "utf8"));
 const words = d.words;
 const W = words.length;
 
-// Die Schrift im Repository (KFGQPC Uthmanic Script HAFS v0.09) kennt die
-// "offenen" Tanwīn-Zeichen (U+08F0–08F2) noch nicht – wir nutzen die normalen.
+// Die Schrift im Repository (KFGQPC Uthmanic Script HAFS v0.09) kennt einige
+// Zeichen der neueren Textfassung nicht (sie erscheinen als Platzhalter):
+//   offene Tanwīn (U+08F0–08F2)            → normale Tanwīn
+//   Kasra + kleines Mīm unten (U+06ED)      → Kasratain (Tanwīn bleibt erkennbar)
+//   kleines Sīn unten (U+06E3, ein Wort)    → entfällt
 const FIX = { "ࣰ": "ً", "ࣱ": "ٌ", "ࣲ": "ٍ" };
-const fix = (s) => s.replace(/[ࣰ-ࣲ]/g, (c) => FIX[c]);
+const fix = (s) =>
+  s
+    .replace(/[ࣰ-ࣲ]/g, (c) => FIX[c])
+    .replace(/ِۭ/g, "ٍ")
+    .replace(/[ۭۣ]/g, "");
 
 const toArabicDigits = (n) => String(n).replace(/\d/g, (c) => "٠١٢٣٤٥٦٧٨٩"[c]);
 
@@ -146,12 +153,23 @@ for (let s = 0; s < 114; s++) {
   writeFileSync(join(root, `data/surah/${String(n).padStart(3, "0")}.js`), file);
 }
 
+// Juz: Anfang und Ende (Sure, Vers) sowie Seiten
+const verseOfWord = (i) => {
+  const s = surahOfWord(i);
+  return [s + 1, ayahIdxOfWord(i) - d.surahs[s].first_ayah + 1];
+};
+const juzMeta = juzStarts.map((start, j) => {
+  const end = (juzStarts[j + 1] ?? W) - 1;
+  return { n: j + 1, start: verseOfWord(start), end: verseOfWord(end), p0: pageOfWord(start), p1: pageOfWord(end) };
+});
+
 writeFileSync(
   join(root, "data/surahs.js"),
   "// Generiert von tools/build-data.mjs – nicht von Hand bearbeiten.\n" +
     "// Quelle: KFGQPC Uthmanic Hafs via @quran.ws/text (CC BY 4.0).\n" +
     `window.QURAN_BASMALA=${JSON.stringify(basmala)};\n` +
-    `window.QURAN_SURAHS=${JSON.stringify(meta)};\n`
+    `window.QURAN_SURAHS=${JSON.stringify(meta)};\n` +
+    `window.QURAN_JUZ=${JSON.stringify(juzMeta)};\n`
 );
 
 console.log(`114 Suren geschrieben, ${W} Wörter, ${lineInfo.length} Textzeilen.`);

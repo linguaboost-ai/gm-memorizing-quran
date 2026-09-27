@@ -189,19 +189,21 @@
     }
 
     /**
-     * Bereich festlegen (stoppt die Wiedergabe).
-     * tail: { ayah, words, verseWords } – Anfang des nächsten Verses als Anschluss
+     * Verse festlegen (stoppt die Wiedergabe).
+     * verses: [{ surah, ayah }] in Mushaf-Reihenfolge – vor jedem Surenanfang
+     *         (außer Al-Fātiḥa und At-Tawba) wird die Basmala rezitiert.
+     * tail:   { surah, ayah, words, verseWords } – Anfang des nächsten Verses als Anschluss
      */
-    load(reciterId, surah, from, to, tail) {
+    load(reciterId, verses, tail) {
       this.stop();
       this.reciter = reciterById(reciterId);
-      this.surah = surah;
-      this.from = from;
-      this.to = to;
+      this.signature = reciterId + "|" + verses.map((v) => v.surah + ":" + v.ayah).join(",");
       this.queue = [];
-      if (from === 1 && surah !== 1 && surah !== 9) this.queue.push({ surah: 1, ayah: 1, basmala: true });
-      for (let a = from; a <= to; a++) this.queue.push({ surah, ayah: a });
-      if (tail) this.queue.push({ surah, ayah: tail.ayah, tail: true, fraction: firstWordsFraction(tail.verseWords, tail.words) });
+      for (const v of verses) {
+        if (v.ayah === 1 && v.surah !== 1 && v.surah !== 9) this.queue.push({ surah: 1, ayah: 1, basmala: true });
+        this.queue.push({ surah: v.surah, ayah: v.ayah, key: `${v.surah}:${v.ayah}` });
+      }
+      if (tail) this.queue.push({ surah: tail.surah, ayah: tail.ayah, tail: true, fraction: firstWordsFraction(tail.verseWords, tail.words) });
       // Nur die Verse dieses Abschnitts im Speicher behalten
       const keep = new Set(this.queue.map((q) => this.key(q)));
       for (const k of Array.from(this.buffers.keys())) if (!keep.has(k)) this.buffers.delete(k);
@@ -215,11 +217,11 @@
       return this.queue[this.index];
     }
 
-    /** Aktuell rezitierter Vers (null während der Basmala oder im Stillstand). */
-    get activeAyah() {
+    /** Aktuell rezitierter Vers als "Sure:Vers" (null während Basmala, Anschluss oder Stillstand). */
+    get activeKey() {
       const c = this.current;
       if (!c || c.basmala || c.tail || this.status === "idle" || this.status === "ended") return null;
-      return c.ayah;
+      return c.key;
     }
 
     toggle() {
@@ -245,8 +247,8 @@
       this.playIndex(0);
     }
 
-    playFromAyah(ayah) {
-      const i = this.queue.findIndex((q) => !q.basmala && q.ayah === ayah);
+    playFromKey(key) {
+      const i = this.queue.findIndex((q) => q.key === key);
       if (i >= 0) this.playIndex(i);
     }
 
@@ -273,8 +275,8 @@
 
     /** Kurzer Probevers für die Auswahl des Rezitators. */
     preview(reciterId, surah, ayah) {
-      this.load(reciterId, surah, ayah, ayah);
-      this.queue = [{ surah, ayah }];
+      this.load(reciterId, [{ surah, ayah }]);
+      this.queue = [{ surah, ayah, key: `${surah}:${ayah}` }];
       this.playIndex(0);
     }
 

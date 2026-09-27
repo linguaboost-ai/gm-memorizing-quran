@@ -1,10 +1,13 @@
 /*
- * Quran-Daten laden und in Tages- und Lernabschnitte einteilen.
+ * Quran-Daten (Madani-Mushaf, 604 Seiten à 15 Zeilen): laden, Seiten, Juz,
+ * Seitenviertel und Tagesplan.
  *
  * Positionen werden in "Zeilen" gemessen: Seite p, Zeile l (1–15) liegt bei
  * (p - 1) * 15 + (l - 1). Innerhalb einer Zeile wird jedem Token der gleiche
- * Anteil zugeteilt. So lassen sich Viertel-, halbe und ganze Mushaf-Seiten
- * direkt als Raster ausdrücken.
+ * Anteil zugeteilt.
+ *
+ * Ein Lernabschnitt ("Einheit") ist ein Seitenviertel: eine Folge ganzer
+ * Verse in Mushaf-Reihenfolge – auch über Surengrenzen hinweg.
  */
 (function () {
   "use strict";
@@ -18,6 +21,7 @@
   const TOKEN_SYMBOL = 2;
 
   const surahs = window.QURAN_SURAHS;
+  const juzList = window.QURAN_JUZ;
   const cache = {};
 
   const pad3 = (n) => String(n).padStart(3, "0");
@@ -43,146 +47,184 @@
 
   function prepare(raw) {
     const meta = surahs[raw.n - 1];
-    const lines = [];
-    const ayahs = [];
-    let wordId = 0;
-
+    const surah = { n: raw.n, meta, juz: raw.juz, lines: [], ayahs: [] };
     for (const [page, line, kind, rawTokens] of raw.lines) {
       const height = SHORT_PAGES[page] ? LINES_PER_PAGE / SHORT_PAGES[page] : 1;
       const pos = (page - 1) * LINES_PER_PAGE + (line - 1) * height;
-      const entry = { page, line, kind, pos, height, tokens: [] };
+      const entry = { surah: raw.n, page, line, kind, pos, height, tokens: [] };
       if (kind === "t") {
         const count = rawTokens.length;
         rawTokens.forEach(([ayah, text, type = TOKEN_WORD], i) => {
           const token = {
+            surah: raw.n,
             ayah,
+            key: `${raw.n}:${ayah}`,
             text,
             type,
             start: pos + (i / count) * height,
             end: pos + ((i + 1) / count) * height,
             line: entry,
           };
-          if (type === TOKEN_WORD) token.id = wordId++;
           entry.tokens.push(token);
-          const a = ayahs[ayah - 1] || (ayahs[ayah - 1] = { n: ayah, tokens: [], start: token.start });
-          a.tokens.push(token);
-          a.end = token.end;
-          a.page = a.page || page;
+          let v = surah.ayahs[ayah - 1];
+          if (!v) v = surah.ayahs[ayah - 1] = { surah: raw.n, ayah, key: token.key, data: surah, tokens: [], start: token.start, page };
+          v.tokens.push(token);
+          v.end = token.end;
         });
       }
-      lines.push(entry);
+      surah.lines.push(entry);
     }
-
-    const first = lines[0];
-    const last = lines[lines.length - 1];
-    return {
-      n: raw.n,
-      meta,
-      juz: raw.juz,
-      lines,
-      ayahs,
-      start: first.pos,
-      end: last.pos + last.height,
-      anchor: (first.page - 1) * LINES_PER_PAGE,
-    };
+    surah.start = surah.lines[0].pos;
+    const last = surah.lines[surah.lines.length - 1];
+    surah.end = last.pos + last.height;
+    return surah;
   }
 
   /** Beginn eines Verses inkl. Kopfzeile und Basmala beim ersten Vers. */
-  function ayahStart(surah, a) {
-    return a === 1 ? surah.start : surah.ayahs[a - 2].end;
+  const verseStart = (v) => (v.ayah === 1 ? v.data.start : v.tokens[0].start);
+
+  /* ------------------------------------------------------------- Seiten */
+
+  const surahsOnPage = (p) => surahs.filter((m) => m.p0 <= p && p <= m.p1).map((m) => m.n);
+
+  async function loadPages(pages) {
+    const need = new Set();
+    for (const p of pages) if (p >= 1 && p <= 604) for (const n of surahsOnPage(p)) need.add(n);
+    await Promise.all(Array.from(need).map(load));
   }
 
-  function rangeSize(surah, from, to) {
-    return (surah.ayahs[to - 1].end - ayahStart(surah, from)) / LINES_PER_PAGE;
+  /** Alle Zeilen einer Seite (die Suren der Seite müssen geladen sein). */
+  function linesOfPage(p) {
+    const out = [];
+    for (const n of surahsOnPage(p)) if (cache[n]) for (const l of cache[n].lines) if (l.page === p) out.push(l);
+    return out.sort((a, b) => a.line - b.line);
   }
+
+  /** Verse, die auf Seite p beginnen, in Mushaf-Reihenfolge. */
+  function versesStartingOn(p) {
+    const out = [];
+    for (const n of surahsOnPage(p)) if (cache[n]) for (const v of cache[n].ayahs) if (v.page === p) out.push(v);
+    return out;
+  }
+
+  const juzOfPage = (p) => (juzList.find((j) => j.p0 <= p && p <= j.p1) || juzList[juzList.length - 1]).n;
+
+  /* -------------------------------------------------------- Seitenviertel */
 
   /**
-   * Teilt die Verse from..to in Abschnitte von etwa `pages` Seiten. Verse
-   * werden nie geteilt: jede Grenze liegt am Versende, das einer Zielposition
-   * am nächsten ist.
-   *
-   * mode "grid": Zielpositionen sind Seitenbruchteile des Mushaf (ab dem
-   *   oberen Rand der ersten Surenseite) – so fallen Tagesabschnitte z. B.
-   *   genau auf obere/untere Seitenhälften.
-   * mode "even": der Bereich wird in gleich große Teile zerlegt – für die
-   *   Lerneinheiten innerhalb eines Tages.
-   *
-   * Sehr kleine Reste (< 30 % eines Abschnitts) werden an den Nachbarn angehängt.
+   * Teilt die auf Seite p beginnenden Verse in (höchstens) vier etwa gleich
+   * große Teile aus ganzen Versen. Bei weniger als vier Versen: ein Teil pro Vers.
    */
-  function divide(surah, from, to, pages, mode = "grid") {
-    const startPos = ayahStart(surah, from);
-    const endPos = surah.ayahs[to - 1].end;
-    const end = (a) => surah.ayahs[a - 1].end;
-    const eps = 1e-6;
-
-    const targets = [];
-    let step = pages * LINES_PER_PAGE;
-    if (mode === "even") {
-      const n = Math.max(1, Math.round((endPos - startPos) / step));
-      step = (endPos - startPos) / n;
-      for (let k = 1; k < n; k++) targets.push(startPos + k * step);
-    } else {
-      let k = Math.floor((startPos - surah.anchor) / step) + 1;
-      for (let g = surah.anchor + k * step; g < endPos - eps; g = surah.anchor + ++k * step) targets.push(g);
-    }
-
+  function pageParts(p) {
+    const verses = versesStartingOn(p);
+    if (!verses.length) return [];
+    const n = Math.min(4, verses.length);
+    const s = verseStart(verses[0]);
+    const e = verses[verses.length - 1].end;
     const cuts = [];
-    for (const g of targets) {
-      let best = null;
-      let bestDist = Infinity;
-      for (let a = from; a < to; a++) {
-        const dist = Math.abs(end(a) - g);
-        if (dist < bestDist - eps) {
-          bestDist = dist;
-          best = a;
-        }
+    let prev = -1;
+    for (let k = 1; k < n; k++) {
+      const target = s + ((e - s) * k) / n;
+      let best = prev + 1;
+      for (let i = prev + 1; i <= verses.length - 1 - (n - k); i++) {
+        if (Math.abs(verses[i].end - target) < Math.abs(verses[best].end - target)) best = i;
       }
-      if (best !== null && (cuts.length === 0 || best > cuts[cuts.length - 1])) cuts.push(best);
+      cuts.push(best);
+      prev = best;
     }
-
-    const sections = [];
-    let s = from;
-    for (const c of cuts) {
-      sections.push([s, c]);
-      s = c + 1;
-    }
-    sections.push([s, to]);
-
-    const length = ([a, b]) => end(b) - ayahStart(surah, a);
-    for (let guard = 0; guard < 1000 && sections.length > 1; guard++) {
-      const i = sections.findIndex((sec) => length(sec) < 0.3 * step);
-      if (i < 0) break;
-      const j = i === 0 ? 1 : i - 1;
-      const lo = Math.min(i, j);
-      sections.splice(lo, 2, [sections[lo][0], sections[lo + 1][1]]);
-    }
-    return sections;
+    cuts.push(verses.length - 1);
+    const parts = [];
+    let from = 0;
+    cuts.forEach((c, index) => {
+      const vs = verses.slice(from, c + 1);
+      parts.push(makeUnit(vs, { page: p, part: index, parts: n }));
+      from = c + 1;
+    });
+    return parts;
   }
 
-  /** Vollständiger Plan: Tagesabschnitte, jeweils unterteilt in Lernabschnitte. */
-  function plan(surah, daily, chunk) {
-    return divide(surah, 1, surah.ayahs.length, daily).map(([from, to], index) => ({
-      index,
-      from,
-      to,
-      size: rangeSize(surah, from, to),
-      chunks: divide(surah, from, to, chunk, "even").map(([a, b]) => ({ from: a, to: b, size: rangeSize(surah, a, b) })),
-    }));
+  function makeUnit(verses, extra) {
+    const first = verses[0];
+    const last = verses[verses.length - 1];
+    return Object.assign(
+      {
+        verses,
+        keys: new Set(verses.map((v) => v.key)),
+        size: (last.end - verseStart(first)) / LINES_PER_PAGE,
+      },
+      extra
+    );
   }
 
-  /** Wörter (ohne Versnummern und Zeichen) eines Versbereichs in Lesereihenfolge. */
-  function wordsOf(surah, from, to) {
+  /* --------------------------------------------------------------- Juz */
+
+  const juz = (n) => juzList[n - 1];
+
+  /** Lädt alle Suren eines Juz (plus die Folgeseite für den Anschluss). */
+  function loadJuz(n) {
+    const j = juz(n);
+    const pages = [];
+    for (let p = j.p0; p <= Math.min(604, j.p1 + 1); p++) pages.push(p);
+    return loadPages(pages);
+  }
+
+  /** Alle Seitenviertel eines Juz in Reihenfolge. */
+  function juzParts(n) {
+    const j = juz(n);
     const out = [];
-    for (let a = from; a <= to; a++) for (const t of surah.ayahs[a - 1].tokens) if (t.type === TOKEN_WORD) out.push(t);
+    for (let p = j.p0; p <= j.p1; p++) out.push(...pageParts(p));
     return out;
   }
 
   /**
-   * Anschluss: die ersten `n` Wörter des Verses nach `to` (samt davorstehender
-   * Zeichen wie ۞). Hat der Vers höchstens `n` Wörter, gehört er ganz dazu.
+   * Tagesplan: aufeinanderfolgende Seitenviertel, bis die Tagesmenge (in
+   * Seiten) erreicht ist. Ein sehr kleiner Rest am Ende kommt zum Vortag.
    */
-  function tailOf(surah, to, n = 3) {
-    const next = surah.ayahs[to];
+  function planDays(juzN, daily) {
+    const parts = juzParts(juzN);
+    const days = [];
+    let cur = [];
+    let acc = 0;
+    for (const part of parts) {
+      cur.push(part);
+      acc += part.size;
+      // ¼ Seite: genau ein Viertel pro Tag; sonst bis die Tagesmenge erreicht ist
+      if (daily <= 0.25 || acc >= daily - 0.125 - 1e-9) {
+        days.push(cur);
+        cur = [];
+        acc = 0;
+      }
+    }
+    if (cur.length) {
+      if (days.length && acc < daily * 0.3) days[days.length - 1].push(...cur);
+      else days.push(cur);
+    }
+    return days.map((units, index) => ({ index, units, size: units.reduce((s, u) => s + u.size, 0) }));
+  }
+
+  /* ------------------------------------------------------------ Einheit */
+
+  function wordsOf(unit) {
+    const out = [];
+    for (const v of unit.verses) for (const t of v.tokens) if (t.type === TOKEN_WORD) out.push(t);
+    return out;
+  }
+
+  /** Vers nach v (auch in der nächsten Sure) – falls geladen. */
+  function nextVerse(v) {
+    const s = v.data;
+    if (v.ayah < s.ayahs.length) return s.ayahs[v.ayah];
+    const next = cache[v.surah + 1];
+    return next ? next.ayahs[0] : null;
+  }
+
+  /**
+   * Anschluss: die ersten `n` Wörter des Verses nach der Einheit (samt
+   * davorstehender Zeichen wie ۞). Hat der Vers höchstens `n` Wörter, gehört
+   * er ganz dazu.
+   */
+  function tailOf(unit, n = 3) {
+    const next = nextVerse(unit.verses[unit.verses.length - 1]);
     if (!next) return null;
     const tokens = [];
     let words = 0;
@@ -195,7 +237,16 @@
       if (t.type === TOKEN_WORD) words++;
       tokens.push(t);
     }
-    return { ayah: next.n, tokens, complete, verseWords: next.tokens.filter((t) => t.type === TOKEN_WORD).map((t) => t.text) };
+    return { verse: next, tokens, complete, verseWords: next.tokens.filter((t) => t.type === TOKEN_WORD).map((t) => t.text) };
+  }
+
+  /** Beschriftung, z. B. „Ghāfir 1–4“ oder „An-Naba’ 38 – An-Nāzi‘āt 5“. */
+  function label(unit) {
+    const f = unit.verses[0];
+    const l = unit.verses[unit.verses.length - 1];
+    const name = (v) => surahs[v.surah - 1].tr;
+    if (f.surah === l.surah) return f.ayah === l.ayah ? `${name(f)} ${f.ayah}` : `${name(f)} ${f.ayah}–${l.ayah}`;
+    return `${name(f)} ${f.ayah} – ${name(l)} ${l.ayah}`;
   }
 
   /** Globale Versnummer (1–6236), z. B. für alternative Audioquellen. */
@@ -211,13 +262,21 @@
     TOKEN_AYAH_END,
     TOKEN_SYMBOL,
     surahs,
+    juzList,
     meta: (n) => surahs[n - 1],
+    juz,
     load,
-    plan,
-    divide,
-    rangeSize,
+    loadPages,
+    loadJuz,
+    linesOfPage,
+    versesStartingOn,
+    juzOfPage,
+    pageParts,
+    juzParts,
+    planDays,
     wordsOf,
     tailOf,
+    label,
     globalAyah,
     basmala: window.QURAN_BASMALA,
   };

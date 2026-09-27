@@ -5,6 +5,7 @@
   "description": "German Method – Qur'an auswendig lernen im Medina-Mushaf-Layout",
   "scripts": {
     "build:data": "node tools/build-data.mjs",
+    "build:content": "node tools/build-content.mjs",
     "start": "npx --yes serve -l 5173 ."
   },
   "devDependencies": {
