@@ -34,7 +34,9 @@ ansteuern, Timer können übersprungen werden.
      `ghafir.csv`; dazu gibt es den Zusammenhang der Verse (Munāsaba nach
      al-Biqāʿī, `f-a_biqai-old.txt`) zum Aufklappen.
    - **1b Reihenfolge:** Die Emojis bleiben, die Fragmente stehen gemischt in
-     einem Auswahlrad (nur das mittlere ist lesbar, Mausrad/Touchpad/Pfeile).
+     einem Auswahlrad wie beim iPhone: weiches Scrollen mit Schwung und
+     Einrasten (Wischen, Touchpad, Mausrad, Pfeile); nur das mittlere ist lesbar,
+     die Nachbarn werden stufenlos unscharf und neigen sich weg.
      Das gesuchte Fragment wird nach oben gezogen – nur der Reihe nach, falsche
      springen zurück.
 2. **Auswendiglernen** – der Abschnitt im Madani-Mushaf, dazu die ersten drei

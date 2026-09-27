@@ -115,7 +115,7 @@
       window.removeEventListener("pointercancel", up);
       if (hover) hover.classList.remove("drop-hover");
       sourceEl.classList.remove("dragging");
-      const accepted = e.type === "pointerup" && onDrop(hover);
+      const accepted = onDrop(e.type === "pointerup" ? hover : null);
       if (accepted) {
         ghost.remove();
         return;
@@ -258,14 +258,26 @@
   /* ------------------------------------------------- 1b Reihenfolge finden */
 
   /**
+   * Auswahlrad wie beim iPhone: echte Scroll-Liste mit Einrasten (Scroll-Snap),
+   * Schwung beim Wischen, Mausrad und Touchpad. Unschärfe, Transparenz und
+   * Neigung hängen stufenlos vom Abstand zur Mitte ab – nur das mittlere
+   * Fragment ist lesbar.
+   *
    * @param {HTMLElement} el
    * @param {object} st         { fragments, emojis, order: [ids gemischt], placed, wheel }
    * @param {Function} changed
    */
   function mountOrder(el, st, changed) {
     const remaining = () => st.order.filter((id) => id >= st.placed);
+    let scroller = null;
+    let items = [];
+    let current = 0;
+    let frame = 0;
+    let settleTimer = null;
+    let target = null; // Ziel einer laufenden Animation (Pfeile, Mausrad-Rasten)
 
     function render() {
+      const hadFocus = !!scroller && document.activeElement === scroller;
       const rest = remaining();
       if (st.wheel >= rest.length) st.wheel = Math.max(0, rest.length - 1);
       const done = st.placed >= st.fragments.length;
@@ -292,33 +304,122 @@
             ? `<div class="order-done">Ma schā' Allāh – alle Fragmente stehen an ihrem Platz.</div>`
             : `<div class="wheel-wrap">
           <button class="wheel-arrow" data-wheel="-1" aria-label="Vorheriges Fragment">▲</button>
-          <div class="wheel" tabindex="0" aria-label="Fragmente – mit Mausrad oder Pfeiltasten blättern">
-            ${[-2, -1, 0, 1, 2]
-              .map((d) => {
-                const id = rest[st.wheel + d];
-                if (id === undefined) return `<div class="wheel-item empty d${d}"></div>`;
-                return `<div class="wheel-item d${d}" ${d === 0 ? 'data-current="1"' : `data-step="${d}"`}>${esc(st.fragments[id].text)}</div>`;
-              })
-              .join("")}
+          <div class="wheel">
+            <div class="wheel-band" aria-hidden="true"></div>
+            <div class="wheel-scroll" tabindex="0" aria-label="Fragmente – wischen, Mausrad oder Pfeiltasten">
+              ${rest.map((id) => `<div class="wheel-item" data-id="${id}">${esc(st.fragments[id].text)}</div>`).join("")}
+            </div>
           </div>
           <button class="wheel-arrow" data-wheel="1" aria-label="Nächstes Fragment">▼</button>
           <button class="btn btn-outline insert-btn" data-insert="1">↑ Einsetzen</button>
         </div>
-        <p class="hint">Blättere zum gesuchten Fragment und zieh es nach oben. Falsche Fragmente springen zurück.</p>`
+        <p class="hint">Wische zum gesuchten Fragment und zieh es nach oben (am Handy: kurz gedrückt halten, dann ziehen). Falsche Fragmente springen zurück.</p>`
         }`;
+      scroller = el.querySelector(".wheel-scroll");
+      items = scroller ? Array.from(scroller.children) : [];
+      if (!scroller) return;
+      layout();
+      scrollToIndex(st.wheel, false);
+      paint();
+      scroller.addEventListener("scroll", onScroll, { passive: true });
+      scroller.addEventListener("wheel", onWheel, { passive: false });
+      if (hadFocus) scroller.focus({ preventScroll: true });
+      // Zeilenhöhen stimmen erst mit geladener Schrift
+      if (document.fonts && document.fonts.status !== "loaded") document.fonts.ready.then(relayout);
     }
 
-    function scroll(delta) {
-      const n = remaining().length;
-      st.wheel = Math.max(0, Math.min(n - 1, st.wheel + delta));
-      render();
+    function relayout() {
+      if (!scroller || !scroller.isConnected) return;
+      layout();
+      scrollToIndex(current, false);
+      paint();
+    }
+
+    /** Innenabstand, damit auch das erste und letzte Fragment mittig stehen können. */
+    function layout() {
+      const h = scroller.clientHeight;
+      const first = items[0];
+      const last = items[items.length - 1];
+      scroller.style.paddingTop = Math.max(0, h / 2 - first.offsetHeight / 2) + "px";
+      scroller.style.paddingBottom = Math.max(0, h / 2 - last.offsetHeight / 2) + "px";
+    }
+
+    function offsetFor(i) {
+      const it = items[i];
+      return it.offsetTop - scroller.clientHeight / 2 + it.offsetHeight / 2;
+    }
+
+    function scrollToIndex(i, smooth) {
+      i = Math.max(0, Math.min(items.length - 1, i));
+      target = smooth ? i : null;
+      scroller.scrollTo({ top: offsetFor(i), behavior: smooth ? "smooth" : "auto" });
+    }
+
+    /** Einen Schritt weiter – auch mehrfach schnell hintereinander. */
+    function step(dir) {
+      scrollToIndex((target ?? current) + dir, true);
+    }
+
+    function onScroll() {
+      if (!frame) frame = requestAnimationFrame(paint);
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => {
+        target = null;
+        st.wheel = current;
+        changed();
+      }, 160);
+    }
+
+    // Maus mit Rasten: pro Raste genau ein Fragment (weich animiert).
+    // Touchpad und Touch scrollen nativ mit Schwung und rasten ein.
+    // Rasten erkennt man an wheelDeltaY in 120er-Schritten (Chrome, Edge,
+    // Safari) bzw. an zeilenweisem deltaMode (Firefox); das Mac-Touchpad
+    // liefert wheelDeltaY = -3 · deltaY.
+    function onWheel(e) {
+      if (e.ctrlKey || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      const w = e.wheelDeltaY;
+      const notch = e.deltaMode !== 0 || (!!w && w % 120 === 0 && w !== -3 * e.deltaY);
+      if (!notch) return;
+      e.preventDefault();
+      step(Math.sign(e.deltaY));
+    }
+
+    /** Stil jedes Eintrags nach seinem Abstand zur Mitte. */
+    function paint() {
+      frame = 0;
+      if (!scroller || !scroller.isConnected) return;
+      const box = scroller.getBoundingClientRect();
+      const mid = box.top + box.height / 2;
+      let best = 0;
+      let bestDist = Infinity;
+      items.forEach((it, i) => {
+        const r = it.getBoundingClientRect();
+        const d = r.top + r.height / 2 - mid;
+        const ad = Math.abs(d);
+        if (ad < bestDist) {
+          bestDist = ad;
+          best = i;
+        }
+        const blur = Math.min(8, ad / 9);
+        it.style.filter = blur < 0.4 ? "none" : `blur(${blur.toFixed(1)}px)`;
+        it.style.opacity = String(Math.max(0.18, 1 - ad / 170));
+        const tilt = Math.max(-50, Math.min(50, -d / 4));
+        it.style.transform = `perspective(700px) rotateX(${tilt.toFixed(1)}deg) scale(${Math.max(0.84, 1 - ad / 800).toFixed(3)})`;
+      });
+      if (best !== current || !items[best].classList.contains("current")) {
+        current = best;
+        items.forEach((it, i) => it.classList.toggle("current", i === best));
+        const band = el.querySelector(".wheel-band");
+        if (band) band.style.height = items[best].offsetHeight + "px";
+      }
     }
 
     function tryInsert() {
-      const id = remaining()[st.wheel];
+      const id = remaining()[current];
       if (id === undefined) return false;
       if (id === st.placed) {
         st.placed++;
+        st.wheel = current;
         render();
         changed();
         return true;
@@ -329,84 +430,87 @@
         void wanted.offsetWidth;
         wanted.classList.add("shake");
       }
+      if (navigator.vibrate) navigator.vibrate(40);
       return false;
     }
 
     el.addEventListener("click", (e) => {
       const arrow = e.target.closest("[data-wheel]");
-      if (arrow) return scroll(+arrow.dataset.wheel);
-      const step = e.target.closest("[data-step]");
-      if (step) return scroll(+step.dataset.step);
+      if (arrow && scroller) return step(+arrow.dataset.wheel);
+      const item = e.target.closest(".wheel-item");
+      if (item && scroller && !item.classList.contains("current")) return scrollToIndex(items.indexOf(item), true);
       if (e.target.closest("[data-insert]")) tryInsert();
     });
 
-    let acc = 0;
-    el.addEventListener(
-      "wheel",
-      (e) => {
-        if (!e.target.closest(".wheel")) return;
-        e.preventDefault();
-        acc += e.deltaY;
-        if (Math.abs(acc) >= 40) {
-          scroll(acc > 0 ? 1 : -1);
-          acc = 0;
-        }
-      },
-      { passive: false }
-    );
-
     el.addEventListener("keydown", (e) => {
-      if (!e.target.closest(".wheel")) return;
-      if (e.key === "ArrowDown") {
+      if (!e.target.closest(".wheel-scroll")) return;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
-        scroll(1);
-        el.querySelector(".wheel").focus();
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        scroll(-1);
-        el.querySelector(".wheel").focus();
+        step(e.key === "ArrowDown" ? 1 : -1);
       } else if (e.key === "Enter") {
         tryInsert();
       }
     });
 
-    // Wischen auf dem Rad blättert; das mittlere Fragment nach oben ziehen setzt es ein
+    // Mittleres Fragment nach oben ziehen: mit der Maus direkt, am Touchscreen
+    // nach kurzem Gedrückthalten (sonst ist es normales Wischen).
+    let blockTouch = false;
+    el.addEventListener(
+      "touchmove",
+      (e) => {
+        if (blockTouch) e.preventDefault();
+      },
+      { passive: false }
+    );
+
     el.addEventListener("pointerdown", (e) => {
-      const wheel = e.target.closest(".wheel");
-      if (!wheel || (e.button !== undefined && e.button !== 0)) return;
-      const current = e.target.closest("[data-current]");
+      const item = e.target.closest(".wheel-item.current");
+      if (!item || (e.button !== undefined && e.button !== 0)) return;
       const x0 = e.clientX;
       const y0 = e.clientY;
-      let last = y0;
-      let dragging = false;
+      const lift = (ev) => {
+        cleanup();
+        blockTouch = true;
+        item.classList.add("lifted");
+        if (navigator.vibrate) navigator.vibrate(10);
+        startDrag(
+          ev,
+          item,
+          esc(item.textContent),
+          (target) => {
+            blockTouch = false;
+            item.classList.remove("lifted");
+            return !!target && target.dataset.drop === "sheet" && tryInsert();
+          },
+          "frag-ghost"
+        );
+      };
+      let timer = null;
       const move = (ev) => {
-        if (dragging) return;
-        const dy = ev.clientY - y0;
-        if (current && dy < -18 && Math.abs(dy) > Math.abs(ev.clientX - x0)) {
-          // nach oben aus dem Rad heraus: ziehen
-          dragging = true;
-          cleanup();
-          startDrag(ev, current, esc(current.textContent), (target) => !!target && target.dataset.drop === "sheet" && tryInsert(), "frag-ghost");
-          return;
-        }
-        if (!current || Math.abs(dy) > 10) {
-          // Finger nach oben → nächstes Fragment rückt nach
-          const step = Math.trunc((last - ev.clientY) / 34);
-          if (step) {
-            scroll(step > 0 ? 1 : -1);
-            last = ev.clientY;
-          }
+        const dist = Math.hypot(ev.clientX - x0, ev.clientY - y0);
+        if (e.pointerType === "mouse") {
+          if (dist > 6) lift(ev);
+        } else if (dist > 8) {
+          cleanup(); // Wischen
         }
       };
       const cleanup = () => {
+        clearTimeout(timer);
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", cleanup);
         window.removeEventListener("pointercancel", cleanup);
       };
+      if (e.pointerType !== "mouse") timer = setTimeout(() => lift(e), 260);
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", cleanup);
       window.addEventListener("pointercancel", cleanup);
     });
+
+    const onResize = () => {
+      if (!el.isConnected) return window.removeEventListener("resize", onResize);
+      relayout();
+    };
+    window.addEventListener("resize", onResize);
 
     render();
   }

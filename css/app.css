@@ -2103,62 +2103,74 @@ button {
 }
 
 .wheel {
+  position: relative;
   width: 100%;
+  height: 270px;
   border-radius: 18px;
   background: #fff;
   border: 1px solid var(--card-border);
   overflow: hidden;
-  outline: none;
-  touch-action: none;
-  user-select: none;
-  position: relative;
 }
 
-.wheel:focus-visible {
-  box-shadow: 0 0 0 3px rgba(61, 100, 255, 0.35);
-}
-
-.wheel-item {
-  font-family: "UthmanicHafs", serif;
-  direction: rtl;
-  text-align: center;
-  padding: 4px 14px;
-  line-height: 1.7;
-  color: var(--m-ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-}
-
-.wheel-item.empty {
-  min-height: 30px;
-}
-
-.wheel-item.d-2,
-.wheel-item.d2 {
-  font-size: 15px;
-  filter: blur(4px);
-  opacity: 0.35;
-  transform: scaleY(0.8);
-}
-
-.wheel-item.d-1,
-.wheel-item.d1 {
-  font-size: 18px;
-  filter: blur(3px);
-  opacity: 0.55;
-}
-
-.wheel-item.d0 {
-  font-size: 23px;
-  white-space: normal;
-  padding: 10px 14px;
+/* Auswahlfenster in der Mitte, Höhe folgt dem aktuellen Fragment */
+.wheel-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 56px;
+  transform: translateY(-50%);
   background: var(--m-blue-wash);
   border-top: 2px solid var(--m-blue);
   border-bottom: 2px solid var(--m-blue);
+  transition: height 0.18s ease;
+  pointer-events: none;
+}
+
+.wheel-scroll {
+  position: relative;
+  height: 100%;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  outline: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22%, #000 78%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 22%, #000 78%, transparent 100%);
+}
+
+.wheel-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.wheel-scroll:focus-visible {
+  box-shadow: inset 0 0 0 3px rgba(61, 100, 255, 0.35);
+}
+
+.wheel-item {
+  scroll-snap-align: center;
+  font-family: "UthmanicHafs", serif;
+  direction: rtl;
+  text-align: center;
+  font-size: 22px;
+  line-height: 1.75;
+  padding: 8px 16px;
+  color: var(--m-ink);
+  cursor: pointer;
+  transform-origin: center;
+  will-change: transform, filter, opacity;
+}
+
+.wheel-item.current {
   cursor: grab;
-  touch-action: none;
+}
+
+.wheel-item.lifted {
+  opacity: 0.3 !important;
 }
 
 .wheel-arrow {
