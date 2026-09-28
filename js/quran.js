@@ -1,5 +1,5 @@
 /*
- * Quran-Daten (Madani-Mushaf, 604 Seiten à 15 Zeilen): laden, Seiten, Juz,
+ * Quran-Daten (Madani-Mushaf, 604 Seiten à 15 Zeilen): laden, Seiten, Suren,
  * Seitenviertel und Tagesplan.
  *
  * Positionen werden in "Zeilen" gemessen: Seite p, Zeile l (1–15) liegt bei
@@ -156,23 +156,44 @@
     );
   }
 
-  /* --------------------------------------------------------------- Juz */
+  /* ------------------------------------------------------------- Suren */
 
-  const juz = (n) => juzList[n - 1];
-
-  /** Lädt alle Suren eines Juz (plus die Folgeseite für den Anschluss). */
-  function loadJuz(n) {
-    const j = juz(n);
+  /** Lädt die Seiten einer Sure (plus die Folgeseite für den Anschluss). */
+  function loadSurahPages(n) {
+    const m = surahs[n - 1];
     const pages = [];
-    for (let p = j.p0; p <= Math.min(604, j.p1 + 1); p++) pages.push(p);
+    for (let p = m.p0; p <= Math.min(604, m.p1 + 1); p++) pages.push(p);
     return loadPages(pages);
   }
 
-  /** Alle Seitenviertel eines Juz in Reihenfolge. */
-  function juzParts(n) {
-    const j = juz(n);
+  /**
+   * Seitenviertel einer Seite, beschränkt auf die Verse einer Sure. Teilen
+   * sich mehrere Suren eine Seite, bleiben nur die Verse dieser Sure übrig;
+   * leere Viertel entfallen. `part` bleibt die Nummer des Seitenviertels.
+   */
+  function surahPageParts(p, n) {
+    const parts = pageParts(p);
+    if (!n) return parts;
     const out = [];
-    for (let p = j.p0; p <= j.p1; p++) out.push(...pageParts(p));
+    for (const u of parts) {
+      const vs = u.verses.filter((v) => v.surah === n);
+      if (!vs.length) continue;
+      out.push(vs.length === u.verses.length ? u : makeUnit(vs, { page: u.page, part: u.part, parts: u.parts, surah: n }));
+    }
+    return out;
+  }
+
+  /** Einheit zu einer Auswahl { page, part, surah? }. */
+  function unitFor(ref) {
+    const parts = surahPageParts(ref.page, ref.surah);
+    return parts.find((u) => u.part === ref.part) || parts[0] || null;
+  }
+
+  /** Alle Seitenviertel einer Sure in Reihenfolge. */
+  function surahParts(n) {
+    const m = surahs[n - 1];
+    const out = [];
+    for (let p = m.p0; p <= m.p1; p++) out.push(...surahPageParts(p, n));
     return out;
   }
 
@@ -180,8 +201,8 @@
    * Tagesplan: aufeinanderfolgende Seitenviertel, bis die Tagesmenge (in
    * Seiten) erreicht ist. Ein sehr kleiner Rest am Ende kommt zum Vortag.
    */
-  function planDays(juzN, daily) {
-    const parts = juzParts(juzN);
+  function planDays(surahN, daily) {
+    const parts = surahParts(surahN);
     const days = [];
     let cur = [];
     let acc = 0;
@@ -264,15 +285,16 @@
     surahs,
     juzList,
     meta: (n) => surahs[n - 1],
-    juz,
     load,
     loadPages,
-    loadJuz,
+    loadSurahPages,
     linesOfPage,
     versesStartingOn,
     juzOfPage,
     pageParts,
-    juzParts,
+    surahPageParts,
+    unitFor,
+    surahParts,
     planDays,
     wordsOf,
     tailOf,

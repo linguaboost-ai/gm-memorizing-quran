@@ -2548,3 +2548,481 @@ button {
   width: 32px;
   height: 32px;
 }
+
+/* ======================================================================
+   v3: Screens (Sure → Seite → Bereich), Tabs, Munāsaba, Fragment-Ansicht
+   ====================================================================== */
+
+/* ---- Schritte eines Ablaufs (ein Schritt pro Screen) ---- */
+
+.wizard-steps {
+  list-style: none;
+  margin: 0;
+  padding: 10px 16px 0;
+  display: flex;
+  gap: 6px;
+}
+
+.wizard-steps li {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 3px solid var(--card-border);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.wizard-steps li span {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--chip);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.wizard-steps li span svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+.wizard-steps li.past {
+  border-color: var(--lavender);
+  color: var(--primary);
+}
+
+.wizard-steps li.now {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.wizard-steps li.now span,
+.wizard-steps li.past span {
+  background: var(--primary);
+  color: #fff;
+}
+
+.eyebrow.dark {
+  color: var(--primary);
+}
+
+.sura-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.content > .search {
+  position: sticky;
+  top: 8px;
+  z-index: 4;
+  box-shadow: 0 6px 18px rgba(38, 36, 123, 0.08);
+}
+
+/* Lerntage als Liste */
+.weekday-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1.5px solid var(--card-border);
+  border-radius: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.check-row input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.check-box {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  border: 2px solid var(--lavender);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.check-box svg {
+  width: 16px;
+  height: 16px;
+  fill: #fff;
+  opacity: 0;
+}
+
+.check-row.on {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.check-row.on .check-box {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.check-row.on .check-box svg {
+  opacity: 1;
+}
+
+.check-row:focus-within {
+  box-shadow: 0 0 0 3px rgba(38, 36, 123, 0.18);
+}
+
+/* ---- Tabs der Startseite ---- */
+
+.content.with-tabbar {
+  padding-bottom: 96px;
+}
+
+.tabbar {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--app-max);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 8px 10px max(10px, env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--card-border);
+  z-index: 20;
+}
+
+.tabbar button {
+  border: 0;
+  background: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 0;
+  border-radius: 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tabbar svg {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+
+.tabbar button[aria-current="page"] {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.progress-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid var(--card-border);
+}
+
+.progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.progress-head strong {
+  font-size: 16px;
+}
+
+.progress-head small {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.progress-card .progress {
+  display: block;
+}
+
+.empty-note p {
+  margin: 0;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+/* ---- Umschalter Mushaf ⇄ Fragmente und Einblendungen ---- */
+
+.view-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 10px;
+}
+
+.view-switch {
+  display: inline-flex;
+  padding: 3px;
+  background: var(--chip);
+  border-radius: 12px;
+}
+
+.view-switch button {
+  border: 0;
+  background: none;
+  padding: 7px 14px;
+  border-radius: 9px;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.view-switch button[aria-pressed="true"] {
+  background: #fff;
+  color: var(--primary);
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.12);
+}
+
+.toggle-row,
+.prep-bar .toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip-btn .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  border: 1.5px solid currentColor;
+  vertical-align: 1px;
+}
+
+.chip-btn.on .dot {
+  background: currentColor;
+}
+
+.chip-btn:not(.on) {
+  color: var(--muted);
+}
+
+/* ---- Munāsaba zwischen den Fragmenten ---- */
+
+.frag-row.gap {
+  border-bottom: 1px dashed rgba(29, 85, 148, 0.2);
+}
+
+.gap-main {
+  padding: 8px 12px;
+  direction: ltr;
+}
+
+.frag-slot.blank {
+  background: var(--m-blue-wash);
+}
+
+.mun-t {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.mun-q {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  line-height: 1.4;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.frag-row.gap .gap-main {
+  background: linear-gradient(90deg, rgba(185, 159, 111, 0.1), rgba(185, 159, 111, 0.02));
+  border-left: 3px solid var(--gold);
+}
+
+/* 1c: Lücken */
+.frag-row.gap.open .gap-main {
+  border-left: 0;
+  background: none;
+  margin: 6px 10px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed rgba(38, 36, 123, 0.25);
+  border-radius: 12px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.gap-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.frag-row.gap.open.armed .gap-main {
+  border-color: var(--blue);
+  cursor: pointer;
+}
+
+.frag-row.gap.open.armed .gap-label {
+  color: var(--blue);
+}
+
+.frag-row.gap.open.drop-hover .gap-main {
+  background: rgba(61, 100, 255, 0.12);
+  border-color: var(--blue);
+}
+
+.frag-row.gap.shake .gap-main {
+  animation: shake 0.4s ease;
+  background: rgba(180, 35, 24, 0.08);
+  border-color: var(--danger);
+}
+
+.frag-row.gap.placed.just .gap-main {
+  animation: placed-in 0.5s ease;
+}
+
+@keyframes placed-in {
+  from {
+    background: rgba(15, 157, 143, 0.25);
+  }
+}
+
+.mun-pool-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 18px;
+}
+
+.mun-pool-head h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.mun-pool {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.mun-card {
+  background: #fff;
+  border: 1.5px solid var(--card-border);
+  border-left: 4px solid var(--gold);
+  border-radius: 14px;
+  padding: 10px 12px;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+}
+
+.mun-card.selected {
+  border-color: var(--blue);
+  border-left-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(61, 100, 255, 0.2);
+}
+
+.mun-card.dragging {
+  opacity: 0.35;
+}
+
+.mun-card.shake {
+  animation: shake 0.4s ease;
+  border-color: var(--danger);
+}
+
+.drag-ghost.mun-ghost {
+  background: #fff;
+  border: 2px solid var(--primary);
+  border-left: 4px solid var(--gold);
+  padding: 10px 12px;
+  max-width: calc(100vw - 32px);
+}
+
+/* ---- Fragment-Ansicht zum Auswendiglernen ---- */
+
+.read-sheet.no-emoji .frag-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.frag-ar.read {
+  font-size: 25px;
+  line-height: 2;
+}
+
+.frag-ar.read .t {
+  border-radius: 0.2em;
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+}
+
+.frag-ar.read .w {
+  position: relative;
+  display: inline-block;
+}
+
+.frag-ar.read .ghost {
+  opacity: 0.1;
+}
+
+.frag-ar.read .front {
+  position: absolute;
+  top: 0;
+  right: 0;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.frag-ar.read .front .hide {
+  opacity: 0;
+}
+
+.frag-ar.read .active {
+  background: rgba(63, 127, 196, 0.13);
+  box-shadow: 0 0 0 0.08em rgba(63, 127, 196, 0.13);
+}
+
+.frag-ar.read .next {
+  color: var(--m-blue-2);
+  cursor: default;
+}
+
+.frag-row.tail .frag-main {
+  min-height: 0;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.emoji-chip.static {
+  cursor: default;
+}

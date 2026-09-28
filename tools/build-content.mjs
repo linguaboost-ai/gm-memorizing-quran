@@ -4,7 +4,10 @@
 //   test_quiz.csv  Quizfragen für die 2-Minuten-Pause (Antwort 1 ist richtig)
 //   text_quiz.txt  Texte mit Frage für die 4-Minuten-Pause
 //   ghafir.csv     Versfragmente mit Übersetzung und Emoji
-//   f-a_biqai-old.txt  Munāsaba (Zusammenhang der Verse) nach al-Biqāʿī
+//   ghafir_munasaba.csv  Munāsaba nach al-Biqāʿī zwischen den Fragmenten:
+//                  je Fragment eine Aussage und eine Frage, die das nächste
+//                  Fragment beantwortet; Fragment 0 = Einstieg vor Vers 1
+//                  (erstellt aus f-a_biqai-old.txt und ghafir_biqai.txt)
 //
 //   npm run build:content
 //
@@ -151,35 +154,27 @@ for (const [key, frs] of byVerse) {
   fragments[key] = out;
 }
 
-// --- Munāsaba nach al-Biqāʿī (Sure Ghāfir) ---
-const munasaba = { surah: 40, verses: {}, pages: [], arc: "" };
-{
-  const clean = (t) => t.replace(/\*\*/g, "").replace(/(^|\s)\*([^*]+)\*/g, "$1$2").trim();
-  const lines = existsSync(join(root, "f-a_biqai-old.txt")) ? read("f-a_biqai-old.txt").split(/\r?\n/) : [];
-  let page = null;
-  let last = null; // Eintrag, zu dem die nächste ❓-Frage gehört
-  for (let i = 0; i < lines.length; i++) {
-    const l = lines[i].trim();
-    let m;
-    if ((m = l.match(/^\*\*Surat .*Seite (\d+) \(Verse (\d+)[–-](\d+)\)/))) {
-      page = { n: +m[1], from: +m[2], to: +m[3], bridge: "", bridgeQ: "", thread: "" };
-      munasaba.pages.push(page);
-      last = null;
-    } else if ((m = l.match(/^\*Brücke[^*]*\*\s*(.*)$/)) && page) {
-      page.bridge = clean(m[1]);
-      last = { set: (q) => (page.bridgeQ = q) };
-    } else if ((m = l.match(/^\*\*Vers (\d+)[^*]*:\*\*\s*(.*)$/))) {
-      const entry = { t: clean(m[2]), q: "" };
-      munasaba.verses[`40:${+m[1]}`] = entry;
-      last = { set: (q) => (entry.q = q) };
-    } else if (l.startsWith("❓") && last) {
-      last.set(clean(l.replace(/^❓\s*/, "")));
-      last = null;
-    } else if (/^\*\*Merkfaden/.test(l) && page) {
-      page.thread = clean(lines[i + 1] || "");
-    } else if (/^\*\*Der große Bogen/.test(l)) {
-      munasaba.arc = clean(lines[i + 1] || "");
+// --- Munāsaba zwischen den Fragmenten ---
+// { start: { "40": {t, q} }, frag: { "40:3": [{t, q}, …] } } – Reihenfolge wie die Fragmente
+const munasaba = { start: {}, frag: {} };
+let munCount = 0;
+if (existsSync(join(root, "ghafir_munasaba.csv"))) {
+  const rowsM = parseCsv(read("ghafir_munasaba.csv"))
+    .slice(1)
+    .filter((r) => /^\d+$/.test(r[0]) && /^\d+$/.test(r[1]) && /^\d+$/.test(r[2]) && r[3]);
+  for (const [s, a, f, t, q] of rowsM) {
+    const entry = { t, q: q || "" };
+    if (+f === 0) {
+      munasaba.start[+s] = entry;
+      continue;
     }
+    const key = `${+s}:${+a}`;
+    (munasaba.frag[key] = munasaba.frag[key] || [])[+f - 1] = entry;
+    munCount++;
+  }
+  for (const [key, list] of Object.entries(munasaba.frag)) {
+    const want = (fragments[key] || []).length;
+    if (list.length !== want || list.some((e) => !e)) console.warn(`Munāsaba ${key}: ${list.filter(Boolean).length} Einträge, ${want} Fragmente`);
   }
 }
 
@@ -193,4 +188,4 @@ writeFileSync(
     `window.CONTENT_FRAGMENTS=${JSON.stringify(fragments)};\n` +
     `window.CONTENT_MUNASABA=${JSON.stringify(munasaba)};\n`
 );
-console.log(`${dhikr.length} Adhkar, ${quiz.length} Quizfragen, ${texts.length} Texte, ${byVerse.size} Verse mit Fragmenten (${unmatched} Grenzen nur ungefähr), Munāsaba für ${Object.keys(munasaba.verses).length} Verse auf ${munasaba.pages.length} Seiten.`);
+console.log(`${dhikr.length} Adhkar, ${quiz.length} Quizfragen, ${texts.length} Texte, ${byVerse.size} Verse mit Fragmenten (${unmatched} Grenzen nur ungefähr), Munāsaba für ${munCount} Fragmente.`);

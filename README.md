@@ -7,21 +7,26 @@ In-App-Käufe Screens“.
 
 ## Der Plan
 
-1. **Was möchtest du auswendig lernen?** Einer der 30 Juz (mit Anfang und Ende:
-   Sure, Surennummer, Vers).
+Ein Schritt pro Screen:
+
+1. **Welche Sure?** Liste aller 114 Suren mit Suche (Name oder Nummer).
 2. **An welchen Tagen?** Wochentage zum Ankreuzen (Mehrfachauswahl).
-3. **Wie viel pro Tag?** ¼, ½, 1, 1½ oder 2 Seiten.
+3. **Wie viel pro Tag?** ¼, ½, 1, 1½ oder 2 Seiten, mit Übersicht.
 
 Gelernt wird in **Seitenvierteln**: Jede Mushaf-Seite wird in vier etwa gleich
-große Teile aus ganzen Versen geteilt (bei nur drei Versen in drei Teile). Die
-Tage bestehen aus so vielen Vierteln, wie es der Tagesmenge entspricht, und
+große Teile aus ganzen Versen geteilt (bei nur drei Versen in drei Teile);
+teilen sich mehrere Suren eine Seite, zählen nur die Verse der gewählten Sure.
+Die Tage bestehen aus so vielen Vierteln, wie es der Tagesmenge entspricht, und
 werden auf die gewählten Wochentage verteilt.
+
+Die Startseite hat vier Tabs: **Heute** (Tagespensum), **Plan** (alle
+Lerntage), **Notizen** und **Einstellungen**.
 
 ## Zum Testen
 
-Über „Zum Testen: freie Auswahl“ (oder `index.html?test`): Juz → Seite →
-Viertel. Die Seite wird klein dargestellt; beim Überfahren mit der Maus wird das
-jeweilige Viertel hervorgehoben. Im Testmodus lassen sich alle Schritte frei
+Über „Zum Testen: freie Auswahl“ (oder `index.html?test`), je ein Screen:
+Sure → Seite → Bereich (Viertel). Die Seite wird klein dargestellt; beim
+Überfahren mit der Maus wird das jeweilige Viertel hervorgehoben. Im Testmodus lassen sich alle Schritte frei
 ansteuern, Timer können übersprungen werden.
 
 ## Ablauf eines Seitenviertels
@@ -31,16 +36,23 @@ ansteuern, Timer können übersprungen werden.
      (getrennt bei ۘ ۚ ۖ ۗ). Die Übersetzung lässt sich ein- und ausblenden.
      Rechts daneben eine Spalte, in die Emojis per Drag & Drop gezogen werden.
      Für Sure Ghāfir kommen Fragmente, Übersetzung und Emojis aus
-     `ghafir.csv`; dazu gibt es den Zusammenhang der Verse (Munāsaba nach
-     al-Biqāʿī, `f-a_biqai-old.txt`) zum Aufklappen.
+     `ghafir.csv`. Zwischen den Fragmenten steht die Munāsaba nach al-Biqāʿī:
+     je eine Aussage und eine Frage, die das nächste Fragment beantwortet –
+     auch vor dem ersten und nach dem letzten Fragment (abschaltbar).
    - **1b Reihenfolge:** Die Emojis bleiben, die Fragmente stehen gemischt in
      einem Auswahlrad wie beim iPhone: weiches Scrollen mit Schwung und
      Einrasten (Wischen, Touchpad, Mausrad, Pfeile); nur das mittlere ist lesbar,
      die Nachbarn werden stufenlos unscharf und neigen sich weg.
      Das gesuchte Fragment wird nach oben gezogen – nur der Reihe nach, falsche
      springen zurück.
-2. **Auswendiglernen** – der Abschnitt im Madani-Mushaf, dazu die ersten drei
-   Wörter des nächsten Verses (blau) als Anschluss. „Weiter“ graut bei jedem
+   - **1c Munāsaba** (wenn vorhanden): Alle Munāsaba-Teile stehen gemischt
+     untereinander und werden per Drag & Drop (oder Antippen) in die Lücken vor,
+     zwischen und nach den Fragmenten gesetzt; falsche springen zurück.
+2. **Auswendiglernen** – der Abschnitt im Madani-Mushaf oder in der
+   Fragment-Ansicht (Umschalter „Mushaf | Fragmente“; dort lassen sich Emojis,
+   Übersetzung und Munāsaba einzeln ein- und ausblenden), dazu die ersten drei
+   Wörter des nächsten Verses (blau) als Anschluss. Rezitation und Ausgrauen
+   sind in beiden Ansichten gleich. „Weiter“ graut bei jedem
    Wort ein Fünftel der Zeichen aus (Buchstaben und Harakat einzeln, Shadda
    doppelt, abgerundet), „Zurück“ holt es wieder. Nach fünf Schritten ist alles
    ausgegraut. Dann:
@@ -78,8 +90,13 @@ npx serve .
 ## Inhalte ändern
 
 Die Inhaltsdateien im Stammverzeichnis (`dhikr.csv`, `test_quiz.csv`,
-`text_quiz.txt`, `ghafir.csv`, `f-a_biqai-old.txt`) werden in
+`text_quiz.txt`, `ghafir.csv`, `ghafir_munasaba.csv`) werden in
 `data/content.js` übersetzt:
+
+`ghafir_munasaba.csv` enthält pro Fragment (Nummerierung wie in `ghafir.csv`
+innerhalb des Verses) eine Aussage und eine Frage, die das nächste Fragment
+beantwortet; Fragment 0 von Vers 1 ist der Einstieg vor dem ersten Fragment.
+Erstellt aus `f-a_biqai-old.txt` und `ghafir_biqai.txt`.
 
 ```bash
 npm install
@@ -93,11 +110,11 @@ npm run build:content   # Adhkar, Quiz, Texte, Fragmente, Munāsaba
 | --- | --- |
 | `index.html` | Einstieg |
 | `css/app.css` | Design (German Method) und Madani-Mushaf |
-| `js/quran.js` | Daten, Seiten, Juz, Seitenviertel, Tagesplan |
+| `js/quran.js` | Daten, Seiten, Suren, Seitenviertel, Tagesplan |
 | `js/mushaf.js` | Darstellung im Madani-Mushaf |
 | `js/fade.js` | Ausgrauen in Fünfteln |
 | `js/player.js` | Rezitatoren und lückenlose Wiedergabe |
-| `js/prep.js` | Vorbereitung: Fragmente, Emojis, Auswahlrad |
+| `js/prep.js` | Vorbereitung: Fragmente, Emojis, Auswahlrad, Munāsaba, Fragment-Ansicht |
 | `js/activities.js` | Pausen: Dhikr, Quiz, Lesetext |
 | `js/app.js` | Screens, Plan, Testmodus, Ablauf |
 | `data/` | Generierte Daten |
