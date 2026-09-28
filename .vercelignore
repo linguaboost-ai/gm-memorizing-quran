@@ -9,3 +9,4 @@ README.md
 # Inhaltsquellen (die App nutzt data/content.js)
 *.csv
 *.txt
+design-kit*
