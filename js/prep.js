@@ -244,7 +244,7 @@
         <div class="prep-bar">
           <span class="status-text">${done} / ${st.fragments.length} zugeordnet</span>
           <span class="toggles">
-            ${st.fragments.some((f) => f.de) ? `<button class="chip-btn ${st.showDe ? "on" : ""}" data-prep="toggle-de" aria-pressed="${!!st.showDe}">Übersetzung</button>` : ""}
+            ${st.fragments.some((f) => f.de) ? `<label class="switch-row"><input type="checkbox" class="switch" data-prep="toggle-de" ${st.showDe ? "checked" : ""} />Übersetzung</label>` : ""}
           </span>
         </div>
         <div class="emoji-tray" data-drop="tray">
@@ -268,7 +268,7 @@
             )
             .join("")}
         </div>
-        <p class="hint">Zieh ein Emoji in die Spalte neben das passende Fragment (oder tippe erst das Emoji, dann das Feld an). Zurück in die Leiste ziehen entfernt es wieder.</p>`;
+        <p class="how">Zieh ein Emoji in die Spalte neben das passende Fragment (oder tippe erst das Emoji, dann das Feld an). Zurück in die Leiste ziehen entfernt es wieder.</p>`;
     }
 
     function assign(slot, emoji, fromSlot) {
@@ -395,9 +395,9 @@
             </div>
           </div>
           <button class="wheel-arrow" data-wheel="1" aria-label="Nächstes Fragment">▼</button>
-          <button class="btn btn-outline insert-btn" data-insert="1">↑ Einsetzen</button>
+          <button class="btn secondary insert-btn" data-insert="1">↑ Einsetzen</button>
         </div>
-        <p class="hint">Wische zum gesuchten Fragment und zieh es nach oben (am Handy: kurz gedrückt halten, dann ziehen). Falsche Fragmente springen zurück.</p>`
+        <p class="how">Wische zum gesuchten Fragment und zieh es nach oben (am Handy: kurz gedrückt halten, dann ziehen). Falsche Fragmente springen zurück.</p>`
         }`;
       scroller = el.querySelector(".wheel-scroll");
       items = scroller ? Array.from(scroller.children) : [];
@@ -588,7 +588,7 @@
         <div class="prep-bar">
           <span class="status-text">${done} / ${n} zugeordnet</span>
           <span class="toggles">
-            ${st.fragments.some((f) => f.de) ? `<button class="chip-btn ${st.showDe ? "on" : ""}" data-prep="toggle-de" aria-pressed="${!!st.showDe}">Übersetzung</button>` : ""}
+            ${st.fragments.some((f) => f.de) ? `<label class="switch-row"><input type="checkbox" class="switch" data-prep="toggle-de" ${st.showDe ? "checked" : ""} />Übersetzung</label>` : ""}
           </span>
         </div>
         <div class="frag-sheet link-sheet">
@@ -612,7 +612,7 @@
           <div class="mun-pool">${pool
             .map((id) => `<div class="mun-card ${selected === id ? "selected" : ""}" data-card="${id}" role="button" tabindex="0">${partHtml(st.parts[id])}</div>`)
             .join("")}</div>
-          <p class="hint">Jeder Teil besteht aus einer Aussage und einer Frage – die Frage beantwortet das Fragment direkt danach. Zieh die Teile in die passenden Lücken (oder tippe erst einen Teil, dann die Lücke an). Am Handy: kurz gedrückt halten, dann ziehen.</p>`
+          <p class="how">Jeder Teil besteht aus einer Aussage und einer Frage – die Frage beantwortet das Fragment direkt danach. Zieh die Teile in die passenden Lücken (oder tippe erst einen Teil, dann die Lücke an). Am Handy: kurz gedrückt halten, dann ziehen.</p>`
             : `<div class="order-done">Ma schā' Allāh – alle Teile stehen an ihrem Platz.</div>`
         }`;
     }

@@ -2,8 +2,11 @@
 
 Web-App zum Auswendiglernen des Qur'an im Layout des Madani-Mushaf (blaue
 Ausgabe), mit Rezitation, Vorbereitung über Versfragmente, schrittweisem
-Ausgrauen und sinnvoll gefüllten Pausen. Gestaltet nach den „German Method –
-In-App-Käufe Screens“.
+Ausgrauen und sinnvoll gefüllten Pausen. Gestaltet nach dem Design-Kit
+„Quran verstehen lernen“ (`design-kit.zip`: Farben, DM Sans, weiße Karten,
+schwarze Hauptknöpfe, Richtig/Falsch mit Farbe und Symbol), das auf den
+„German Method – In-App-Käufe Screens“ beruht. Der Mushaf selbst bleibt in der
+blauen Madani-Ausgabe.
 
 ## Der Plan
 
@@ -121,6 +124,7 @@ npm run build:content   # Adhkar, Quiz, Texte, Fragmente, Munāsaba
 | `data/` | Generierte Daten |
 | `tools/` | Skripte zum Erzeugen der Daten |
 | `uthmanic.woff2` | Schrift: KFGQPC Uthmanic Script HAFS |
+| `fonts/` | DM Sans (SIL Open Font License, siehe `fonts/OFL-DMSans.txt`) |
 
 ## Quellen
 

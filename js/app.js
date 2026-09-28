@@ -59,6 +59,19 @@
     review3: "Wdh. 3",
     reflect: "3 Abschluss",
   };
+  const STEP_GROUP = {
+    assign: "Vorbereitung",
+    order: "Vorbereitung",
+    link: "Vorbereitung",
+    learn: "Auswendiglernen",
+    pause1: "Pause · Dhikr",
+    review1: "Wiederholung",
+    pause2: "Pause · Quiz",
+    review2: "Wiederholung",
+    pause3: "Pause · Lesetext",
+    review3: "Wiederholung",
+    reflect: "Abschluss",
+  };
 
   const ICONS = {
     close: "M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z",
@@ -68,6 +81,7 @@
     loading: "M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z",
     check: "M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z",
     chevron: "M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z",
+    chevronLeft: "M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z",
     back: "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z",
     arrow: "M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z",
     home: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
@@ -77,8 +91,6 @@
   };
   const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[name]}"/></svg>`;
 
-  // Wellenform wie im Design (Höhen in px)
-  const BAR_HEIGHTS = [4, 10, 16, 24, 12, 8, 14, 22, 18, 10, 6, 12, 20, 26, 14, 8, 4, 10, 18, 24, 12, 16, 8, 6, 14, 20, 10, 4];
 
   /* ---------------------------------------------------------------- Zustand */
 
@@ -286,9 +298,9 @@
 
   /** Fortschritt eines mehrteiligen Ablaufs (ein Schritt pro Screen). */
   function wizardSteps(labels, current) {
-    return `<ol class="wizard-steps" aria-label="Schritt ${current + 1} von ${labels.length}">${labels
-      .map((l, i) => `<li class="${i === current ? "now" : i < current ? "past" : ""}"><span>${i < current ? icon("check") : i + 1}</span>${esc(l)}</li>`)
-      .join("")}</ol>`;
+    const pct = Math.round(((current + 1) / labels.length) * 100);
+    return `<div class="progress run" aria-label="Schritt ${current + 1} von ${labels.length}: ${esc(labels[current])}">
+      <div class="progress-bar"><span style="width:${pct}%"></span></div><span class="progress-score step">${current + 1}/${labels.length}</span></div>`;
   }
 
   const fold = (x) =>
@@ -345,44 +357,41 @@
     let footer;
     if (st === 0) {
       body = `
-        ${canClose ? "" : `<div class="bismillah">${esc(Quran.basmala)}</div>`}
-        <h1 class="h1">Welche Sure möchtest du auswendig lernen?</h1>
-        <p class="lead">Gelernt wird im Madani-Mushaf, Seite für Seite – immer in ganzen Versen.</p>
+        ${canClose ? "" : `<div class="basmala">${esc(Quran.basmala)}</div>`}
+        ${heading("Dein Lernplan · <span class=\"multi\">Sure</span>", "Welche Sure möchtest du auswendig lernen?", "Gelernt wird im Madani-Mushaf, Seite für Seite – immer in ganzen Versen.")}
         ${suraPickHtml(draft.surah, "setup-sura", draft.query)}`;
       footer = `<button class="btn" data-action="setup-next">Weiter mit ${esc(m.tr)} ${icon("arrow")}</button>
         ${canClose ? "" : `<button class="link-btn muted" data-action="test">Zum Testen: freie Auswahl</button>`}`;
     } else if (st === 1) {
       body = `
-        <span class="eyebrow dark">${esc(m.tr)}</span>
-        <h1 class="h1">An welchen Tagen willst du lernen?</h1>
-        <p class="lead">Wähle einen oder mehrere Wochentage.</p>
-        <div class="weekday-list" role="group" aria-label="Lerntage">
-          ${WEEKDAYS.map(
-            (w) => `<label class="check-row ${draft.weekdays.includes(w.d) ? "on" : ""}">
-              <input type="checkbox" data-action="weekday" data-value="${w.d}" ${draft.weekdays.includes(w.d) ? "checked" : ""} />
-              <span class="check-box">${icon("check")}</span><span>${w.long}</span></label>`
-          ).join("")}
+        ${heading(`${esc(m.tr)} · <span class="multi">Lerntage</span>`, "An welchen Tagen willst du lernen?", "Mehrere Antworten sind möglich.")}
+        <div class="options weekday-list" role="group" aria-label="Lerntage">
+          ${WEEKDAYS.map((w) => {
+            const on = draft.weekdays.includes(w.d);
+            return `<label class="option ${on ? "selected" : ""}">
+              <input type="checkbox" data-action="weekday" data-value="${w.d}" ${on ? "checked" : ""} />
+              <span class="box">${on ? "✓" : ""}</span><span class="option-text">${w.long}</span></label>`;
+          }).join("")}
         </div>`;
       footer = `<button class="btn" data-action="setup-next" ${draft.weekdays.length ? "" : "disabled"}>Weiter ${icon("arrow")}</button>`;
     } else {
       body = `
-        <span class="eyebrow dark">${esc(m.tr)} · ${WEEKDAYS.filter((w) => draft.weekdays.includes(w.d)).map((w) => w.short).join(", ")}</span>
-        <h1 class="h1">Wie viel pro Tag?</h1>
-        <p class="lead">Menge in Mushaf-Seiten. Gelernt wird in Seitenvierteln.</p>
+        ${heading(`${esc(m.tr)} · <span class="multi">${WEEKDAYS.filter((w) => draft.weekdays.includes(w.d)).map((w) => w.short).join(", ")}</span>`, "Wie viel pro Tag?", "Menge in Mushaf-Seiten. Gelernt wird in Seitenvierteln.")}
         <div class="options options-5" role="radiogroup" aria-label="Menge pro Tag">
           ${DAILY_OPTIONS.map(
-            (v) => `<label class="option ${draft.daily === v ? "on" : ""}">
+            (v) => `<label class="option ${draft.daily === v ? "selected" : ""}">
               <input type="radio" name="daily" data-action="daily" data-value="${v}" ${draft.daily === v ? "checked" : ""} />
               <b>${dailyLabel(v)}</b><span>${v > 1 ? "Seiten" : "Seite"}</span></label>`
           ).join("")}
         </div>
-        <div class="card-dark summary" id="plan-summary">${summaryHtml(null)}</div>`;
+        <div class="card summary" id="plan-summary">${summaryHtml(null)}</div>`;
       footer = `<button class="btn" data-action="start-plan">Plan erstellen</button>`;
     }
     return `
-      <header class="topbar">
-        ${st > 0 ? `<button class="icon-btn" data-action="setup-back" aria-label="Zurück">${icon("back")}</button>` : canClose ? `<button class="icon-btn" data-action="home" aria-label="Schließen">${icon("close")}</button>` : ""}
+      <header class="topbar kit">
+        ${st > 0 ? `<button class="icon-btn" data-action="setup-back" aria-label="Zurück">${icon("back")}</button>` : canClose ? `<button class="icon-btn" data-action="home" aria-label="Schließen">${icon("close")}</button>` : `<span class="topbar-side"></span>`}
         <span class="topbar-title">${canClose ? "Neuer Lernplan" : "Dein Lernplan"}</span>
+        <span class="topbar-side"></span>
       </header>
       ${wizardSteps(SETUP_STEPS, st)}
       <main class="content">${body}</main>
@@ -400,12 +409,12 @@
   }
 
   function summaryHtml(days) {
-    if (!days) return `<span class="eyebrow">Dein Plan</span><div class="summary-row">Wird berechnet …</div>`;
+    if (!days) return `<span class="label">Dein Plan</span><div class="summary-row">Wird berechnet …</div>`;
     const dates = scheduleDates(days.length, draft.weekdays, new Date());
     const units = days.reduce((s, d) => s + d.units.length, 0);
     const last = dates[dates.length - 1];
     return `
-      <span class="eyebrow">So sieht dein Plan aus</span>
+      <span class="label">So sieht dein Plan aus</span>
       <div class="summary-row"><b>${days.length}</b> ${days.length === 1 ? "Lerntag" : "Lerntage"} · je ca. ${pagesLabel(draft.daily)}</div>
       <small>${units} Seitenviertel · voraussichtlich fertig: ${dateLabel(last)}${last.getFullYear() !== new Date().getFullYear() ? last.getFullYear() : ""}<br>
       Jedes Viertel: Vorbereitung mit Emojis, Auswendiglernen mit Pausen von 1, 2 und 4 Minuten, Abschluss.</small>`;
@@ -465,9 +474,9 @@
       body = `
         <div class="card hello">
           <div class="hello-main"><span>Assalamu 'Alaikum</span><strong>Dein Hifz-Plan</strong></div>
-          <span class="pill pill-gold">${finished ? "Fertig" : `Tag ${p.day + 1} / ${total}`}</span>
+          <span class="chip">${finished ? "Fertig" : `Tag ${p.day + 1} / ${total}`}</span>
         </div>
-        <div class="bismillah">${esc(Quran.basmala)}</div>
+        <div class="basmala">${esc(Quran.basmala)}</div>
         <h1 class="hero-title">${finished ? `${esc(m.tr)} ist geschafft.` : `Lerne ${esc(m.tr)} auswendig.`}</h1>
         ${todayCardHtml(finished, sched)}
         <button class="card progress-card" data-action="tab" data-value="plan">
@@ -494,7 +503,7 @@
           <div class="settings-row"><div><small>Lerntage</small><strong>${names}</strong></div></div>
           <div class="settings-row"><div><small>Pro Tag</small><strong>${pagesLabel(state.plan.daily)}</strong></div></div>
           <div class="settings-row"><div><small>Rezitator</small><strong>${esc(reciter.name)}</strong></div><button class="link-btn" data-action="change-reciter">Ändern</button></div>
-          <div style="padding-top:12px"><button class="btn btn-outline" data-action="new-plan">Neuen Plan erstellen</button></div>
+          <div style="padding-top:12px"><button class="btn secondary" data-action="new-plan">Neuen Plan erstellen</button></div>
         </div>
         <div class="section-title"><h2>Zum Testen</h2></div>
         <button class="card picker" data-action="test">
@@ -513,11 +522,11 @@
 
   function todayCardHtml(finished, sched) {
     if (finished) {
-      return `<div class="card-dark">
-        <span class="eyebrow">Ma schā' Allāh</span>
+      return `<div class="card today-card">
+        <span class="label">Ma schā' Allāh</span>
         <h2 class="today-title">Alle ${planCtx.days.length} Lerntage geschafft</h2>
         <p class="today-meta left">Wiederhole die Sure regelmäßig, damit sie bleibt.</p>
-        <button class="btn btn-white" data-action="new-plan">Neuen Plan erstellen ${icon("arrow")}</button>
+        <button class="btn" data-action="new-plan">Neuen Plan erstellen</button>
       </div>`;
     }
     const p = state.progress;
@@ -531,16 +540,16 @@
     let button;
     if (s || p.unit > 0) {
       head = `Tag ${p.day + 1} · weiterlernen`;
-      button = `<button class="btn btn-white" data-action="learn">Weiterlernen ${icon("arrow")}</button>`;
+      button = `<button class="btn" data-action="learn">Weiterlernen</button>`;
     } else if (isToday) {
       head = `Heute · ${dateLabel(date)}`;
-      button = `<button class="btn btn-white" data-action="learn">Jetzt lernen ${icon("arrow")}</button>`;
+      button = `<button class="btn" data-action="learn">Jetzt lernen</button>`;
     } else {
       head = doneToday ? "Für heute geschafft ✓" : `Nächster Lerntag: ${date ? dateLabel(date) : "–"}`;
-      button = `<button class="btn btn-white" data-action="learn">Tag ${p.day + 1} jetzt schon lernen ${icon("arrow")}</button>`;
+      button = `<button class="btn" data-action="learn">Tag ${p.day + 1} jetzt schon lernen</button>`;
     }
-    return `<div class="card-dark">
-      <div class="today-head"><span class="eyebrow">Tagespensum · Tag ${p.day + 1}</span><span class="pill pill-light">${pagesLabel(day.size)}</span></div>
+    return `<div class="card today-card">
+      <div class="today-head"><span class="label">Tagespensum · Tag ${p.day + 1}</span><span class="chip">${pagesLabel(day.size)}</span></div>
       <h2 class="today-title">${head}</h2>
       <ol class="unit-list">${units}</ol>
       ${button}
@@ -561,7 +570,7 @@
           <span class="day-dot">${done ? icon("check") : i + 1}</span>
           <span class="day-main"><strong>${date ? dateLabel(date) : `Tag ${i + 1}`} · ${esc(Quran.label({ verses: [first.verses[0], last.verses[last.verses.length - 1]] }))}</strong>
           <span>${pagesLabel(d.size)} · ${d.units.length} Viertel · S. ${first.page}${last.page !== first.page ? "–" + last.page : ""}</span></span>
-          ${current ? `<span class="pill pill-primary">Als Nächstes</span>` : ""}
+          ${current ? `<span class="chip now">Als Nächstes</span>` : ""}
         </div>`;
       })
       .join("");
@@ -600,22 +609,17 @@
     let footer = "";
     if (step === "sura") {
       body = `
-        <h1 class="h1">Welche Sure?</h1>
-        <p class="lead">Freie Auswahl zum Testen – unabhängig vom Plan. Alle Schritte lassen sich frei ansteuern, Timer kannst du überspringen.</p>
+        ${heading("Freie Auswahl · <span class=\"multi\">Sure</span>", "Welche Sure?", "Zum Testen – unabhängig vom Plan. Alle Schritte lassen sich frei ansteuern, Timer kannst du überspringen.")}
         ${suraPickHtml(t.surah, "test-sura", screen.query)}`;
       footer = `<button class="btn" data-action="test-goto" data-value="page">Weiter mit ${esc(m.tr)} ${icon("arrow")}</button>`;
     } else if (step === "page") {
       body = `
-        <span class="eyebrow dark">${m.n}. ${esc(m.tr)}</span>
-        <h1 class="h1">Welche Seite?</h1>
-        <p class="lead">${m.p1 > m.p0 ? `${m.p1 - m.p0 + 1} Seiten im Madani-Mushaf` : "Die Sure steht auf einer Seite"}.</p>
+        ${heading(`${m.n}. ${esc(m.tr)} · <span class="multi">Seite</span>`, "Welche Seite?", `${m.p1 > m.p0 ? `${m.p1 - m.p0 + 1} Seiten im Madani-Mushaf` : "Die Sure steht auf einer Seite"}.`)}
         <div class="page-grid" id="page-grid"><div class="loading-screen">Lädt …</div></div>`;
     } else {
       const reciter = Reciters.byId(state.reciter);
       body = `
-        <span class="eyebrow dark">${m.n}. ${esc(m.tr)} · Seite ${t.page}</span>
-        <h1 class="h1">Welcher Bereich?</h1>
-        <p class="lead">Die Seite ist in Viertel aus ganzen Versen geteilt. Tippe auf ein Viertel.</p>
+        ${heading(`${m.n}. ${esc(m.tr)} · <span class="multi">Seite ${t.page}</span>`, "Welcher Bereich?", "Die Seite ist in Viertel aus ganzen Versen geteilt. Tippe auf ein Viertel.")}
         <div class="mini-wrap">
           <div class="mushaf mini" id="mini-page"><div class="loading-screen">Lädt …</div></div>
           <div class="part-list" id="part-list"></div>
@@ -624,13 +628,14 @@
       footer = `<button class="btn" data-action="test-start">Auswendiglernen starten</button>`;
     }
     return `
-      <header class="topbar">
+      <header class="topbar kit">
         ${
           k > 0
             ? `<button class="icon-btn" data-action="test-goto" data-value="${TEST_STEPS[k - 1]}" aria-label="Zurück">${icon("back")}</button>`
             : `<button class="icon-btn" data-action="${state.plan ? "home" : "setup"}" aria-label="Schließen">${icon("close")}</button>`
         }
         <span class="topbar-title">Freie Auswahl</span>
+        <span class="topbar-side"></span>
       </header>
       ${wizardSteps(["Sure", "Seite", "Bereich"], k)}
       <main class="content">${body}</main>
@@ -736,31 +741,58 @@
   }
 
   function sessionTitle(s, info) {
-    if (s.mode === "test") return `Test · S. ${s.ref.page} · Viertel ${info.partNo}/${info.parts}`;
-    return `Tag ${s.day + 1} · Viertel ${s.unit + 1}/${planCtx.days[s.day].units.length}`;
+    if (s.mode === "test") return `Test · ${info.label}`;
+    return `Tag ${s.day + 1} · ${info.label}`;
   }
 
-  function stepperHtml(s, info) {
+  /** Fortschritt wie im Design-Kit: Balken über alle Schritte des Abschnitts. */
+  function progressHtml(s, info) {
     const steps = stepsOf(info);
     const idx = steps.indexOf(s.step);
-    if (s.mode === "test") {
-      return `<div class="stepper test">${steps
-        .map((st, i) => `<button class="step-chip ${i === idx ? "now" : i < idx ? "past" : ""}" data-action="goto-step" data-value="${st}">${STEP_LABEL[st]}</button>`)
-        .join("")}</div>`;
-    }
-    const learnAt = steps.indexOf("learn");
-    const groups = [
-      ["1 Vorbereitung", 0, learnAt - 1],
-      ["2 Auswendiglernen", learnAt, steps.length - 2],
-      ["3 Abschluss", steps.length - 1, steps.length - 1],
-    ];
-    return `<div class="stepper">${groups
-      .map(([label, a, b]) => {
-        const fill = idx > b ? 100 : idx < a ? 0 : ((idx - a + 1) / (b - a + 2)) * 100;
-        return `<div class="step-group ${idx >= a && idx <= b ? "now" : ""}"><span class="step-bar"><i style="width:${fill}%"></i></span><small>${label}</small></div>`;
-      })
-      .join("")}</div>`;
+    const pct = Math.round(((idx + 1) / steps.length) * 100);
+    const where = s.mode === "test" ? `Viertel ${info.partNo}/${info.parts}` : `Viertel ${s.unit + 1}/${planCtx.days[s.day].units.length}`;
+    return `<div class="progress run"><div class="progress-bar"><span style="width:${pct}%"></span></div><span class="progress-score">${where}</span></div>`;
   }
+
+  /** Kopfzeile: Schließen, Titel, Schritt. Im Testmodus mit Pfeilen und Schrittliste. */
+  function sessionTopbar(s, info) {
+    const steps = stepsOf(info);
+    const idx = steps.indexOf(s.step);
+    const side =
+      s.mode === "test"
+        ? `<span class="topbar-side nav">
+            <button class="step-btn" data-action="step-jump" data-value="-1" aria-label="Vorheriger Schritt" ${idx > 0 ? "" : "disabled"}>${icon("chevronLeft")}</button>
+            <button class="count-btn" data-action="step-sheet" aria-label="Schritt wählen">${idx + 1}/${steps.length}</button>
+            <button class="step-btn" data-action="step-jump" data-value="1" aria-label="Nächster Schritt" ${idx < steps.length - 1 ? "" : "disabled"}>${icon("chevron")}</button>
+          </span>`
+        : `<span class="topbar-side count">${idx + 1}/${steps.length}</span>`;
+    return `<header class="topbar kit">
+        <button class="icon-btn" data-action="close-session" aria-label="Schließen">${icon("close")}</button>
+        <span class="topbar-title">${esc(sessionTitle(s, info))}</span>
+        ${side}
+      </header>`;
+  }
+
+  function openStepSheet(s, info) {
+    const steps = stepsOf(info);
+    openSheet(
+      `<div class="sheet" role="dialog" aria-label="Schritt wählen">
+        <div class="sheet-head"><div class="sheet-head-row"><h3>Schritt wählen</h3><button class="icon-btn" data-action="close-sheet" aria-label="Schließen">${icon("close")}</button></div></div>
+        <div class="sheet-list">${steps
+          .map(
+            (st, i) => `<button class="lesson-card ${st === s.step ? "current" : ""}" data-action="goto-step" data-value="${st}">
+              <span class="dot ${i < steps.indexOf(s.step) ? "done" : "open"}">${i < steps.indexOf(s.step) ? icon("check") : ""}</span>
+              <span class="lesson-card-text"><span class="lesson-card-title">${STEP_LABEL[st]}</span><span class="lesson-card-sub">${STEP_GROUP[st]}</span></span>
+            </button>`
+          )
+          .join("")}</div>
+      </div>`
+    );
+  }
+
+  /** Abschnittslabel, Frage und Hinweis wie im Design-Kit. */
+  const heading = (label, frage, hinweis) =>
+    `<div class="section-label">${label}</div>${frage ? `<p class="frage">${frage}</p>` : ""}${hinweis ? `<p class="hinweis">${hinweis}</p>` : ""}`;
 
   function viewSession() {
     const s = currentSession();
@@ -770,18 +802,15 @@
     let showPlayer = false;
     switch (s.step) {
       case "assign":
-        body = `<h2 class="step-title">1a · Emojis zuordnen</h2>
-          <p class="lead">Der Abschnitt in Fragmenten. Ordne jedem Fragment ein Emoji zu – als Merkhilfe.</p>
+        body = `${heading("Vorbereitung · <span class=\"multi\">1a Emojis zuordnen</span>", "Welches Emoji passt zu welchem Fragment?", "Der Abschnitt in Fragmenten. Jedes Emoji ist eine Merkhilfe für sein Fragment.")}
           <div id="prep"></div>`;
         break;
       case "link":
-        body = `<h2 class="step-title">1c · Munāsaba zuordnen</h2>
-          <p class="lead">Jeder Teil ist eine Aussage mit einer Frage, die das Fragment direkt danach beantwortet. Setze die gemischten Teile an die richtige Stelle – auch vor das erste und hinter das letzte Fragment.</p>
+        body = `${heading("Vorbereitung · <span class=\"multi\">1c Munāsaba</span>", "Wo gehört welcher Zusammenhang hin?", "Jeder Teil ist eine Aussage mit einer Frage, die das Fragment direkt danach beantwortet – auch vor dem ersten und nach dem letzten Fragment.")}
           <div id="prep"></div>`;
         break;
       case "order":
-        body = `<h2 class="step-title">1b · Reihenfolge</h2>
-          <p class="lead">Jetzt umgekehrt: Die Emojis bleiben, die Fragmente sind gemischt. Setze sie der Reihe nach wieder ein.</p>
+        body = `${heading("Vorbereitung · <span class=\"multi\">1b Reihenfolge</span>", "In welcher Reihenfolge kommen die Fragmente?", "Die Emojis bleiben, die Fragmente sind gemischt. Setze sie der Reihe nach wieder ein.")}
           <div id="prep"></div>`;
         break;
       case "learn":
@@ -802,43 +831,36 @@
       default:
     }
     return `
-      <header class="topbar">
-        <button class="icon-btn" data-action="close-session" aria-label="Schließen">${icon("close")}</button>
-        <span class="topbar-title">${esc(sessionTitle(s, info))}</span>
-      </header>
-      ${stepperHtml(s, info)}
+      ${sessionTopbar(s, info)}
+      ${progressHtml(s, info)}
       <main class="content">${body}</main>
       <footer class="footer">
-        ${showPlayer ? `<div class="player" id="player">${playerHtml()}</div><p class="player-error" id="player-error" hidden>Die Rezitation konnte nicht geladen werden. Bitte prüfe deine Internetverbindung.</p>` : ""}
+        ${showPlayer ? `<div class="player audio-card" id="player">${playerHtml()}</div><p class="player-error" id="player-error" hidden>Die Rezitation konnte nicht geladen werden. Bitte prüfe deine Internetverbindung.</p>` : ""}
         <div class="nav-row">
-          <button class="btn btn-outline btn-back" data-action="back" ${canGoBack(s) ? "" : "disabled"}>${icon("back")} Zurück</button>
+          <button class="btn secondary btn-back" data-action="back" ${canGoBack(s) ? "" : "disabled"}>Zurück</button>
           <button class="btn" data-action="next" ${canGoNext(s) ? "" : "disabled"}>${nextLabel(s)}</button>
         </div>
-        <p class="hint" id="session-hint">${hintText(s)}</p>
+        <p class="how" id="session-hint">${hintText(s)}</p>
       </footer>`;
   }
 
   function learnBodyHtml(s, info) {
     const review = s.step !== "learn";
     const fifths = Math.min(...s.levels);
-    let status;
-    if (!review) {
-      status = `<span class="pill pill-primary">Runde ${fifths + 1}</span>
-        <span class="status-text">${fifths === 0 ? "Alles sichtbar" : fifths >= Fade.PARTS ? "Alles ausgegraut" : `${fifths}/${Fade.PARTS} ausgegraut`}</span>`;
-    } else {
-      status = `<span class="pill pill-gold">Wiederholung ${s.step.slice(-1)} / 3</span><span class="status-text">aus dem Gedächtnis</span>`;
-    }
+    const status = !review
+      ? `Auswendiglernen · <span class="multi">Runde ${fifths + 1} · ${fifths === 0 ? "alles sichtbar" : fifths >= Fade.PARTS ? "alles ausgegraut" : `${fifths}/${Fade.PARTS} ausgegraut`}</span>`
+      : `Wiederholung ${s.step.slice(-1)}/3 · <span class="multi">aus dem Gedächtnis</span>`;
     const pages = [...new Set(info.unit.verses.map((v) => v.page))];
     const on = Object.assign(showOf(s), { de: state.prefs.de });
     const frag = viewOf(s) === "frag";
     const toggle = (key, label, show) =>
-      show ? `<button class="chip-btn ${on[key] ? "on" : ""}" data-action="pref" data-value="${key}" aria-pressed="${!!on[key]}"><span class="dot" aria-hidden="true"></span>${label}</button>` : "";
+      show ? `<label class="switch-row"><input type="checkbox" class="switch" data-action="pref" data-value="${key}" ${on[key] ? "checked" : ""} />${label}</label>` : "";
     return `
-      <div class="status-row"><div class="left">${status}</div></div>
+      <div class="section-label">${status}</div>
       <div class="view-bar">
-        <div class="view-switch" role="group" aria-label="Ansicht">
-          <button data-action="view" data-value="mushaf" aria-pressed="${!frag}">Mushaf</button>
-          <button data-action="view" data-value="frag" aria-pressed="${frag}">Fragmente</button>
+        <div class="seg view-switch" role="group" aria-label="Ansicht">
+          <button class="seg-btn ${!frag ? "on" : ""}" data-action="view" data-value="mushaf" aria-pressed="${!frag}">Mushaf</button>
+          <button class="seg-btn ${frag ? "on" : ""}" data-action="view" data-value="frag" aria-pressed="${frag}">Fragmente</button>
         </div>
         ${
           frag
@@ -962,9 +984,7 @@
     const r = s.reflect;
     return `
       <div class="activity">
-        <div class="done-icon small">${icon("check")}</div>
-        <h1 class="h1 center">Abschnitt geschafft!</h1>
-        <p class="lead center">Möchtest du noch festhalten, was du umsetzen willst?<br><b>Das Ausfüllen ist freiwillig</b> – du kannst auch direkt auf „Weiter“ klicken.</p>
+        ${heading("Abschluss · <span class=\"multi\">freiwillig</span>", "Abschnitt geschafft! Was willst du umsetzen?", "<b>Das Ausfüllen ist freiwillig</b> – du kannst auch direkt auf „Weiter“ tippen.")}
         <label class="note-field"><span>Das kann ich aus diesem Abschnitt in den nächsten 24 Stunden umsetzen:</span>
           <textarea rows="3" data-field="reflect-d1" placeholder="freiwillig">${esc(r.d1 || "")}</textarea></label>
         <label class="note-field"><span>Das kann ich aus diesem Abschnitt in den nächsten sieben Tagen umsetzen:</span>
@@ -1178,42 +1198,47 @@
 
   /* ------------------------------------------------------------- Abschlüsse */
 
-  function doneScreen(title, text, buttons) {
+  /** Abschluss-Screen wie die Auswertung im Design-Kit. */
+  function doneScreen(title, card, buttons) {
     return `
-      <div class="done-wrap">
+      <header class="topbar kit"><span class="topbar-side"></span><span class="topbar-title">${title}</span><span class="topbar-side"></span></header>
+      <main class="content result">
         <div class="done-icon">${icon("check")}</div>
-        <span class="eyebrow">Ma schā' Allāh</span>
-        <h1 class="h1" style="text-align:center">${title}</h1>
-        <p class="lead">${text}</p>
-      </div>
-      <footer class="footer">${buttons}</footer>`;
+        <h1 class="result-title">${title}</h1>
+        <p class="result-sub">Ma schā' Allāh</p>
+        <div class="card score-card">${card}</div>
+      </main>
+      <footer class="footer two">${buttons}</footer>`;
   }
+
+  const scoreCard = (label, num, pct) => `<span class="label">${label}</span><span class="score-num">${num}</span>${pct ? `<span class="score-pct">${pct}</span>` : ""}`;
 
   function viewUnitDone() {
     if (screen.mode === "test") {
       return doneScreen(
         "Viertel geschafft!",
-        `${esc(screen.label)} ist gelernt.`,
-        `<button class="btn" data-action="test-next">Nächstes Viertel ${icon("arrow")}</button>
-         <button class="link-btn muted" data-action="test-goto" data-value="area">Zur Auswahl</button>`
+        scoreCard("Gelernt", esc(screen.label), "Aus der freien Auswahl"),
+        `<button class="btn secondary" data-action="test-goto" data-value="area">Zur Auswahl</button>
+         <button class="btn" data-action="test-next">Nächstes Viertel</button>`
       );
     }
     const p = state.progress;
     const day = planCtx.days[p.day];
     return doneScreen(
       "Viertel geschafft!",
-      `${esc(screen.label)} ist gelernt. Weiter mit Viertel ${p.unit + 1} von ${day.units.length}: ${esc(Quran.label(day.units[p.unit]))}.`,
-      `<button class="btn" data-action="learn">Weiter ${icon("arrow")}</button>
-       <button class="link-btn muted" data-action="home">Später weitermachen</button>`
+      scoreCard("Gelernt", esc(screen.label), `Als Nächstes: Viertel ${p.unit + 1} von ${day.units.length} · ${esc(Quran.label(day.units[p.unit]))}`),
+      `<button class="btn secondary" data-action="home">Später</button>
+       <button class="btn" data-action="learn">Weiter</button>`
     );
   }
 
   function viewDayDone() {
     const sched = planSchedule();
     const next = sched[state.progress.day];
+    const total = planCtx.days.length;
     return doneScreen(
       "Tagespensum geschafft!",
-      `Tag ${state.progress.day} ist gelernt.${next && next.date ? ` Nächster Lerntag: ${dateLabel(next.date)}.` : ""}`,
+      scoreCard("Lerntage geschafft", `${state.progress.day} von ${total}`, `${Math.round((state.progress.day / total) * 100)} %${next && next.date ? ` · nächster Lerntag: ${dateLabel(next.date)}` : ""}`),
       `<button class="btn" data-action="home">Zur Übersicht</button>`
     );
   }
@@ -1221,9 +1246,9 @@
   function viewPlanDone() {
     return doneScreen(
       `${esc(suraName(state.plan.surah))} gelernt!`,
-      "Du hast alle Lerntage deines Plans geschafft. Möge Allah es dir leicht machen, ihn zu bewahren.",
-      `<button class="btn" data-action="new-plan">Neuen Plan erstellen</button>
-       <button class="link-btn muted" data-action="home">Zur Übersicht</button>`
+      scoreCard("Plan abgeschlossen", `${planCtx.days.length} Lerntage`, "Möge Allah es dir leicht machen, die Sure zu bewahren."),
+      `<button class="btn secondary" data-action="home">Zur Übersicht</button>
+       <button class="btn" data-action="new-plan">Neuer Plan</button>`
     );
   }
 
@@ -1250,20 +1275,21 @@
 
   /* ----------------------------------------------------------------- Player */
 
-  function barFill(i) {
+  /** Anteil der Wiedergabe (0–1) über alle Verse. */
+  function playFrac() {
     const st = player.status;
-    const frac = st === "ended" ? 1 : st === "idle" ? 0 : (player.index + player.progress) / (player.queue.length || 1);
-    const a = i / BAR_HEIGHTS.length;
-    const b = (i + 1) / BAR_HEIGHTS.length;
-    return frac >= b ? 100 : frac <= a ? 0 : ((frac - a) / (b - a)) * 100;
+    if (st === "ended") return 1;
+    if (st === "idle") return 0;
+    return (player.index + player.progress) / (player.queue.length || 1);
   }
 
   function playerMeta() {
     const st = player.status;
     const c = player.current;
     const verses = player.queue.filter((x) => !x.basmala && !x.tail);
-    if (st === "idle") return `${verses.length} ${verses.length === 1 ? "Vers" : "Verse"}`;
+    if (st === "idle") return `${verses.length} ${verses.length === 1 ? "Vers" : "Verse"} · Abspielen`;
     if (st === "ended") return "Fertig";
+    if (st === "loading") return "Lädt …";
     if (c && c.basmala) return "Basmala";
     if (c && c.tail) return "Anschluss";
     if (c) return `Vers ${verses.indexOf(c) + 1} / ${verses.length}`;
@@ -1274,13 +1300,12 @@
     const st = player.status;
     const busy = st === "loading";
     const playing = st === "playing" || busy;
-    const bars = BAR_HEIGHTS.map((h, i) => `<span data-action="seek" data-value="${i}" style="height:${h}px"><i style="width:${barFill(i)}%"></i></span>`).join("");
+    const reciter = Reciters.byId(state.reciter);
     return `
       <button class="play-btn ${busy ? "loading" : ""}" data-action="play" aria-label="${playing ? "Pause" : "Abspielen"}">${icon(busy ? "loading" : playing ? "pause" : st === "ended" ? "replay" : "play")}</button>
-      <div class="bars" aria-hidden="true">${bars}</div>
-      <div class="player-meta"><b>${playerMeta()}</b>
-        <button class="restart-btn" data-action="restart" ${st === "idle" ? "hidden" : ""}>${icon("replay")} Von vorn</button>
-      </div>`;
+      <span class="audio-text"><span class="audio-note">${playerMeta()}</span><span class="audio-reciter">${esc(reciter.name)}</span></span>
+      <button class="restart-btn" data-action="restart" ${st === "idle" ? "hidden" : ""}>${icon("replay")} Von vorn</button>
+      <span class="audio-track" data-action="seek-track" aria-hidden="true"><i style="width:${playFrac() * 100}%"></i></span>`;
   }
 
   let lastActive = null;
@@ -1292,8 +1317,9 @@
         lastPlayerStatus = player.status;
         el.innerHTML = playerHtml();
       } else {
-        el.querySelectorAll(".bars i").forEach((bar, i) => (bar.style.width = barFill(i) + "%"));
-        const meta = el.querySelector(".player-meta b");
+        const track = el.querySelector(".audio-track i");
+        if (track) track.style.width = playFrac() * 100 + "%";
+        const meta = el.querySelector(".audio-note");
         if (meta) meta.textContent = playerMeta();
       }
     }
@@ -1540,6 +1566,16 @@
       case "goto-step":
         if (s && s.mode === "test") gotoStep(s, value);
         return;
+      case "step-jump": {
+        if (!s || s.mode !== "test") return;
+        const steps = stepsOf(sessionInfo());
+        const i = steps.indexOf(s.step) + +value;
+        if (i >= 0 && i < steps.length) gotoStep(s, steps[i]);
+        return;
+      }
+      case "step-sheet":
+        if (s) openStepSheet(s, sessionInfo());
+        return;
       case "timer-start":
         if (s && isPause(s)) {
           ensureAudioCtx();
@@ -1573,9 +1609,14 @@
         return player.toggle();
       case "restart":
         return player.restart();
-      case "seek": {
+      case "seek-track": {
         const q = player.queue.length;
-        if (q) player.playIndex(Math.min(q - 1, Math.floor((+value / BAR_HEIGHTS.length) * q)));
+        const r = target.getBoundingClientRect();
+        const frac = Math.max(0, Math.min(0.999, (event.clientX - r.left) / r.width));
+        if (q) {
+          ensureAudioCtx();
+          player.playIndex(Math.floor(frac * q));
+        }
         return;
       }
       default:
