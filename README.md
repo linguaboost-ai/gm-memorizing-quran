@@ -36,9 +36,7 @@ ansteuern, Timer können übersprungen werden.
      (getrennt bei ۘ ۚ ۖ ۗ). Die Übersetzung lässt sich ein- und ausblenden.
      Rechts daneben eine Spalte, in die Emojis per Drag & Drop gezogen werden.
      Für Sure Ghāfir kommen Fragmente, Übersetzung und Emojis aus
-     `ghafir.csv`. Zwischen den Fragmenten steht die Munāsaba nach al-Biqāʿī:
-     je eine Aussage und eine Frage, die das nächste Fragment beantwortet –
-     auch vor dem ersten und nach dem letzten Fragment (abschaltbar).
+     `ghafir.csv`.
    - **1b Reihenfolge:** Die Emojis bleiben, die Fragmente stehen gemischt in
      einem Auswahlrad wie beim iPhone: weiches Scrollen mit Schwung und
      Einrasten (Wischen, Touchpad, Mausrad, Pfeile); nur das mittlere ist lesbar,
@@ -47,10 +45,13 @@ ansteuern, Timer können übersprungen werden.
      springen zurück.
    - **1c Munāsaba** (wenn vorhanden): Alle Munāsaba-Teile stehen gemischt
      untereinander und werden per Drag & Drop (oder Antippen) in die Lücken vor,
-     zwischen und nach den Fragmenten gesetzt; falsche springen zurück.
-2. **Auswendiglernen** – der Abschnitt im Madani-Mushaf oder in der
-   Fragment-Ansicht (Umschalter „Mushaf | Fragmente“; dort lassen sich Emojis,
-   Übersetzung und Munāsaba einzeln ein- und ausblenden), dazu die ersten drei
+     zwischen und nach den Fragmenten gesetzt; falsche springen zurück. Jeder
+     Teil ist eine Aussage und eine Frage, die das nächste Fragment beantwortet
+     (Munāsaba nach al-Biqāʿī). Die Emojis bleiben dabei sichtbar. Erst wenn
+     alle Teile richtig sitzen, lässt sich die Munāsaba beim Lernen einblenden.
+2. **Auswendiglernen** – zuerst in der Fragment-Ansicht mit Emojis und
+   Munāsaba (beides eingeschaltet, einzeln abschaltbar, dazu die Übersetzung),
+   per Umschalter „Mushaf | Fragmente“ auch im Madani-Mushaf; dazu die ersten drei
    Wörter des nächsten Verses (blau) als Anschluss. Rezitation und Ausgrauen
    sind in beiden Ansichten gleich. „Weiter“ graut bei jedem
    Wort ein Fünftel der Zeichen aus (Buchstaben und Harakat einzeln, Shadda

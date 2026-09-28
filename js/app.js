@@ -43,7 +43,7 @@
   const DAY_SHORT = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
   const DEFAULT_SURAH = 67;
   const TEST_DEFAULT = { surah: 40, page: 467, part: 0 };
-  const DEFAULT_PREFS = { view: "mushaf", emoji: true, de: false, mun: true };
+  const DEFAULT_PREFS = { de: false };
 
   const STEPS = ["assign", "order", "link", "learn", "pause1", "review1", "pause2", "review2", "pause3", "review3", "reflect"];
   const STEP_LABEL = {
@@ -223,6 +223,9 @@
         wheel: 0,
         linkOrder: info.mun ? Prep.shuffle(info.mun.map((_, i) => i)) : [],
         linkPlaced: info.mun ? info.mun.map(() => false) : [],
+        // Lernen beginnt in der Fragment-Ansicht, Emojis und Munāsaba zunächst an
+        view: "frag",
+        show: { emoji: true, mun: true },
         pauses: [{}, {}, {}],
         acts: [null, null, null],
         reflect: { d1: "", d7: "", life: "" },
@@ -234,6 +237,15 @@
   /** Passt die Sitzung zu diesem Abschnitt? (sonst neu beginnen) */
   const sessionFits = (s, ref, info) =>
     !!s && s.ref.page === ref.page && s.ref.part === ref.part && (s.ref.surah || 0) === (ref.surah || 0) && s.levels.length === info.words.length && Array.isArray(s.linkPlaced) && s.linkPlaced.length === (info.mun ? info.mun.length : 0);
+
+  /** Munāsaba erst anzeigen, wenn sie in 1c richtig eingesetzt wurde. */
+  const munReady = (s, info) => !!info.mun && s.linkPlaced.length > 0 && s.linkPlaced.every(Boolean);
+
+  /** Emojis der Fragmente; im Testmodus übersprungene aus der Vorlage. */
+  const emojisOf = (s, info) => info.fragments.map((f, i) => s.emojis[i] || f.emoji || null);
+
+  const viewOf = (s) => (s.view === "mushaf" ? "mushaf" : "frag");
+  const showOf = (s) => Object.assign({ emoji: true, mun: true }, s.show);
 
   /** Schritte dieses Abschnitts: 1c nur, wenn es eine Munāsaba gibt. */
   const stepsOf = (info) => (info && info.mun ? STEPS : STEPS.filter((x) => x !== "link"));
@@ -759,7 +771,7 @@
     switch (s.step) {
       case "assign":
         body = `<h2 class="step-title">1a · Emojis zuordnen</h2>
-          <p class="lead">Der Abschnitt in Fragmenten. Ordne jedem Fragment ein Emoji zu – als Merkhilfe.${info.mun ? " Dazwischen steht der Zusammenhang nach al-Biqāʿī: eine Aussage und eine Frage, die das nächste Fragment beantwortet." : ""}</p>
+          <p class="lead">Der Abschnitt in Fragmenten. Ordne jedem Fragment ein Emoji zu – als Merkhilfe.</p>
           <div id="prep"></div>`;
         break;
       case "link":
@@ -817,10 +829,10 @@
       status = `<span class="pill pill-gold">Wiederholung ${s.step.slice(-1)} / 3</span><span class="status-text">aus dem Gedächtnis</span>`;
     }
     const pages = [...new Set(info.unit.verses.map((v) => v.page))];
-    const pr = state.prefs;
-    const frag = pr.view === "frag";
+    const on = Object.assign(showOf(s), { de: state.prefs.de });
+    const frag = viewOf(s) === "frag";
     const toggle = (key, label, show) =>
-      show ? `<button class="chip-btn ${pr[key] ? "on" : ""}" data-action="pref" data-value="${key}" aria-pressed="${!!pr[key]}"><span class="dot" aria-hidden="true"></span>${label}</button>` : "";
+      show ? `<button class="chip-btn ${on[key] ? "on" : ""}" data-action="pref" data-value="${key}" aria-pressed="${!!on[key]}"><span class="dot" aria-hidden="true"></span>${label}</button>` : "";
     return `
       <div class="status-row"><div class="left">${status}</div></div>
       <div class="view-bar">
@@ -833,7 +845,7 @@
             ? `<div class="toggle-row" aria-label="Einblenden">
           ${toggle("emoji", "Emojis", true)}
           ${toggle("de", "Übersetzung", info.fragments.some((f) => f.de))}
-          ${toggle("mun", "Munāsaba", !!info.mun)}
+          ${toggle("mun", "Munāsaba", munReady(s, info))}
         </div>`
             : ""
         }
@@ -865,11 +877,12 @@
       return `<span class="${cls}" data-key="${t.key}">${inner}</span>`;
     };
     const tail = info.tail ? info.tail.tokens.map((t) => `<span class="t next">${esc(t.text)}</span>`).join(" ") : "";
+    const show = showOf(s);
     return Prep.readHtml({
       fragments: info.fragments,
-      emojis: s.emojis,
-      parts: info.mun,
-      show: { emoji: state.prefs.emoji, de: state.prefs.de, mun: state.prefs.mun },
+      emojis: emojisOf(s, info),
+      parts: munReady(s, info) ? info.mun : null,
+      show: { emoji: show.emoji, de: state.prefs.de, mun: show.mun },
       word,
       tail,
     });
@@ -1110,11 +1123,9 @@
         fragments: info.fragments,
         emojis: s.emojis,
         palette: s.palette,
-        parts: info.mun,
+        parts: null, // Munāsaba erst nach 1c
         get showDe() { return prefs.de; },
         set showDe(v) { prefs.de = v; },
-        get showMun() { return prefs.mun; },
-        set showMun(v) { prefs.mun = v; },
       };
       Prep.mountAssign(prep, st, () => {
         save();
@@ -1124,7 +1135,7 @@
     if (prep && s.step === "link" && info.mun) {
       const st = {
         fragments: info.fragments,
-        emojis: s.emojis,
+        emojis: emojisOf(s, info),
         parts: info.mun,
         order: s.linkOrder,
         placed: s.linkPlaced,
@@ -1137,7 +1148,7 @@
       });
     }
     if (prep && s.step === "order") {
-      const st = { fragments: info.fragments, emojis: s.emojis, order: s.order, placed: s.placed, wheel: s.wheel };
+      const st = { fragments: info.fragments, emojis: emojisOf(s, info), order: s.order, placed: s.placed, wheel: s.wheel };
       Prep.mountOrder(prep, st, () => {
         s.placed = st.placed;
         s.wheel = st.wheel;
@@ -1513,11 +1524,13 @@
         if (s && s.mode === "test") return go("testpick", { step: "area" });
         return state.plan ? go("home", { tab: "today" }) : openSetup();
       case "view":
-        state.prefs.view = value === "frag" ? "frag" : "mushaf";
+        if (!s) return;
+        s.view = value === "mushaf" ? "mushaf" : "frag";
         save();
         return render(true);
       case "pref":
-        state.prefs[value] = !state.prefs[value];
+        if (value === "de") state.prefs.de = !state.prefs.de;
+        else if (s) s.show = Object.assign(showOf(s), { [value]: !showOf(s)[value] });
         save();
         return render(true);
       case "next":

@@ -12,7 +12,8 @@
  *    jeweils gesuchte Fragment nach oben gezogen; falsche springen zurück.
  * 1c „Munāsaba“: Die Teile des Zusammenhangs (Aussage + Frage, die das
  *    nächste Fragment beantwortet) stehen gemischt untereinander und werden
- *    in die Lücken vor, zwischen und nach den Fragmenten gezogen.
+ *    in die Lücken vor, zwischen und nach den Fragmenten gezogen. Erst danach
+ *    lässt sich die Munāsaba beim Lernen einblenden.
  *
  * Munāsaba-Teile eines Abschnitts mit n Fragmenten: n + 1 Stück. Teil 0 steht
  * vor dem ersten Fragment (Einstieg der Sure oder der Teil des vorigen
@@ -216,7 +217,7 @@
 
   /**
    * @param {HTMLElement} el     Container
-   * @param {object} st          { fragments, emojis: [emoji|null], showDe, showMun, parts, palette }
+   * @param {object} st          { fragments, emojis: [emoji|null], showDe, palette }
    * @param {Function} changed   wird nach jeder Änderung aufgerufen
    */
   function mountAssign(el, st, changed) {
@@ -244,7 +245,6 @@
           <span class="status-text">${done} / ${st.fragments.length} zugeordnet</span>
           <span class="toggles">
             ${st.fragments.some((f) => f.de) ? `<button class="chip-btn ${st.showDe ? "on" : ""}" data-prep="toggle-de" aria-pressed="${!!st.showDe}">Übersetzung</button>` : ""}
-            ${st.parts ? `<button class="chip-btn ${st.showMun ? "on" : ""}" data-prep="toggle-mun" aria-pressed="${!!st.showMun}">Munāsaba</button>` : ""}
           </span>
         </div>
         <div class="emoji-tray" data-drop="tray">
@@ -255,7 +255,7 @@
         <div class="frag-sheet">
           ${st.fragments
             .map(
-              (f, i) => `${st.parts && st.showMun ? gapRow(partHtml(st.parts[i])) : ""}
+              (f, i) => `
             <div class="frag-row">
               <div class="frag-main">
                 <div class="frag-ar">${esc(f.text)}</div>
@@ -267,7 +267,6 @@
             </div>`
             )
             .join("")}
-          ${st.parts && st.showMun ? gapRow(partHtml(st.parts[st.fragments.length])) : ""}
         </div>
         <p class="hint">Zieh ein Emoji in die Spalte neben das passende Fragment (oder tippe erst das Emoji, dann das Feld an). Zurück in die Leiste ziehen entfernt es wieder.</p>`;
     }
@@ -284,12 +283,6 @@
       const t = e.target;
       if (t.closest("[data-prep='toggle-de']")) {
         st.showDe = !st.showDe;
-        render();
-        changed();
-        return;
-      }
-      if (t.closest("[data-prep='toggle-mun']")) {
-        st.showMun = !st.showMun;
         render();
         changed();
         return;
