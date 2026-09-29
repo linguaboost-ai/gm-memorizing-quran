@@ -1,29 +1,50 @@
 /*
- * Darstellung im Layout des Madani-Mushaf (blaue Ausgabe).
+ * Darstellung im Layout des blauen Madani-Mushaf (Gestaltung aus
+ * linguaboost-ai/gm-quran-progress, siehe js/ornaments.js).
  *
- * Für einen Lernabschnitt werden die Mushaf-Zeilen gezeigt, die er berührt –
- * jeweils mit allen Wörtern der Zeile, damit Blocksatz und Wortpositionen
- * exakt der gedruckten Seite entsprechen. Wörter außerhalb des Abschnitts
- * sind unsichtbar (sie halten nur ihren Platz). Ein Abschnitt kann mehrere
- * Suren umfassen.
+ * Es wird immer die ganze Seite gezeigt: Rahmen, Kopfzeile, Surenbanner und
+ * Seitenzahl als SVG (Seite 1000 × 1414 Einheiten), darüber die 15 Zeilen als
+ * Text (für das Ausgrauen einzelner Buchstaben). Beim Lernen ist der Abschnitt
+ * schwarz, der Anschluss blau und alle übrigen Wörter der Seite sind fast
+ * unsichtbar (Deckkraft 0,05). Surenbanner, Kopfzeile und Randmarken bleiben.
  */
 (function () {
   "use strict";
 
   const Q = window.Quran;
+  const O = window.Ornaments;
   const { TOKEN_AYAH_END, TOKEN_SYMBOL } = Q;
   const { escapeHtml, wordHtml } = window.Fade;
+  const T = O.TEXT;
 
   const FONT = "UthmanicHafs";
-  const MAX_FONT = 30;
-  const MIN_FONT = 8;
-  const GAP_EM = 0.18;
+  const MIN_FONT = 6;
   const widthCache = new Map();
   // Eine volle Zeile (Seite 3, Zeile 1) als Maßstab für die kurzen Zeilen der Eröffnungsseiten
   const REFERENCE_LINE = "إِنَّ ٱلَّذِينَ كَفَرُواْ سَوَآءٌ عَلَيۡهِمۡ ءَأَنذَرۡتَهُمۡ أَمۡ لَمۡ تُنذِرۡهُمۡ".split(" ");
+  const SHORT_PAGE_LINES = 8;
 
-  /** Seiten 1 und 2 haben im Mushaf kürzere, zentrierte Zeilen. */
+  /** Seiten 1 und 2 haben im Mushaf kürzere, zentrierte Zeilen im Oval. */
   const isOpeningPage = (page) => page <= 2;
+
+  /** Hizb-Viertel je Seite (data/quarters.js). */
+  const quartersByPage = new Map();
+  for (const [q, page, line] of window.QURAN_QUARTERS || []) {
+    if (!quartersByPage.has(page)) quartersByPage.set(page, []);
+    quartersByPage.get(page).push({ q, line });
+  }
+
+  const pct = (v, of) => `${((v / of) * 100).toFixed(3)}%`;
+
+  /** Lage einer Zeile in Seiteneinheiten. */
+  function rowBox(page, lineNo) {
+    if (!isOpeningPage(page)) return { x: T.left, w: T.right - T.left, y: T.top + (lineNo - 1) * T.pitch };
+    const y = O.SPECIAL.cy - (SHORT_PAGE_LINES * T.pitch) / 2 + (lineNo - 1) * T.pitch;
+    const w = Math.min(T.right - T.left, O.ovalWidth(y + T.pitch / 2));
+    return { x: O.PAGE_W / 2 - w / 2, w, y };
+  }
+
+  const rowStyle = (b) => `left:${pct(b.x, O.PAGE_W)};width:${pct(b.w, O.PAGE_W)};top:${pct(b.y, O.PAGE_H)};height:${pct(T.pitch, O.PAGE_H)}`;
 
   function tokenHtml(token, ctx) {
     const cls = ["t"];
@@ -36,7 +57,7 @@
     } else {
       const inUnit = ctx.keys.has(token.key);
       if (ctx.tail.has(token)) cls.push("next");
-      else if (!inUnit) cls.push("out");
+      else if (!inUnit) cls.push("rest");
       if (inUnit) {
         attrs = ` data-key="${token.key}"`;
         if (token.key === ctx.activeKey) cls.push("active");
@@ -52,39 +73,41 @@
     return `<span class="${cls.join(" ")}"${attrs}>${inner}</span>`;
   }
 
-  function lineHtml(line, ctx) {
-    if (line.kind === "h") {
-      return `<div class="ml ml-head"><div class="sura-frame"><span>سُورَةُ ${escapeHtml(Q.meta(line.surah).ar)}</span></div></div>`;
+  function figureHtml(page, ctx) {
+    const lines = Q.linesOfPage(page);
+    const top = lines.find((l) => l.kind === "t") || lines[0];
+    const banners = [];
+    const rows = [];
+    for (const l of lines) {
+      const box = rowBox(page, l.line);
+      if (l.kind === "h") {
+        banners.push(Object.assign({ surahAr: Q.meta(l.surah).ar, y0: box.y }, isOpeningPage(page) ? { x: box.x, w: box.w } : {}));
+        continue;
+      }
+      if (l.kind === "b") {
+        let cls = "t b";
+        if (ctx.mode === "page") cls += ctx.partOf.has(`${l.surah}:1`) ? "" : " prev";
+        else if (!ctx.keys.has(`${l.surah}:1`)) cls += " rest";
+        rows.push(`<div class="ml ml-basmala ml-center" style="${rowStyle(box)}"><span class="${cls}">${escapeHtml(Q.basmala)}</span></div>`);
+        continue;
+      }
+      // Letzte Zeile einer Sure: darf mittig stehen, wenn sie kurz ist
+      const ends = l.tokens.some((t) => t.type === TOKEN_AYAH_END && t.ayah === Q.meta(t.surah).ayahs);
+      rows.push(`<div class="ml${isOpeningPage(page) ? " ml-center" : ""}" data-line="${l.line}"${ends ? " data-end" : ""} style="${rowStyle(box)}">${l.tokens.map((t) => tokenHtml(t, ctx)).join("")}</div>`);
     }
-    if (line.kind === "b") {
-      return `<div class="ml ml-basmala"><span>${escapeHtml(Q.basmala)}</span></div>`;
-    }
-    const cls = "ml" + (isOpeningPage(line.page) ? " ml-center" : "");
-    return `<div class="${cls}">${line.tokens.map((t) => tokenHtml(t, ctx)).join("")}</div>`;
-  }
-
-  function figureHtml(page, lines, ctx) {
-    const all = Q.linesOfPage(page);
-    const top = all.find((l) => l.kind === "t") || all[0];
+    const quarters = (quartersByPage.get(page) || []).map(({ q, line }) => ({ q, y: rowBox(page, line + 1).y + T.pitch / 2 }));
+    const svg = O.pageSvg({ page, juz: Q.juzOfPage(page), surahAr: Q.meta(top.surah).ar, quarters, banners });
     return `
       <figure class="mushaf-page" data-page="${page}">
-        <div class="mp-paper">
-          <div class="mp-top">
-            <span class="mp-sura">سُورَةُ ${escapeHtml(Q.meta(top.surah).ar)}</span>
-            <span class="mp-juz">Juz ${Q.juzOfPage(page)}</span>
-          </div>
-          <div class="mp-lines">${lines.map((l) => lineHtml(l, ctx)).join("")}</div>
-          <div class="mp-bottom"><span class="mp-num">${page}</span></div>
-        </div>
+        ${svg}
+        <div class="mp-rows">${rows.join("")}</div>
       </figure>`;
   }
 
   /**
-   * Lernabschnitt.
+   * Lernabschnitt: die ganzen Seiten, auf denen er (und sein Anschluss) steht.
    * @param {object} unit   Einheit (Quran.pageParts)
    * @param {object} opts   { levels, shapes, wordIndex, activeKey, tail }
-   *                        levels/shapes je Wort, wordIndex: Token → Index,
-   *                        tail: Anschluss-Tokens des nächsten Verses (normal gezeigt)
    */
   function unitHtml(unit, opts) {
     const ctx = Object.assign({ mode: "unit", keys: unit.keys, levels: [], shapes: [], wordIndex: new Map() }, opts, { tail: new Set(opts.tail || []) });
@@ -93,10 +116,7 @@
     for (const t of ctx.tail) pages.add(t.line.page);
     return Array.from(pages)
       .sort((a, b) => a - b)
-      .map((p) => {
-        const lines = Q.linesOfPage(p).filter((l) => (l.kind === "t" ? l.tokens.some((t) => ctx.keys.has(t.key) || ctx.tail.has(t)) : ctx.keys.has(`${l.surah}:1`)));
-        return figureHtml(p, lines, ctx);
-      })
+      .map((p) => figureHtml(p, ctx))
       .join("");
   }
 
@@ -104,41 +124,58 @@
   function pageHtml(page, parts) {
     const partOf = new Map();
     parts.forEach((u, i) => u.verses.forEach((v) => partOf.set(v.key, i)));
-    return figureHtml(page, Q.linesOfPage(page), { mode: "page", partOf });
+    return figureHtml(page, { mode: "page", partOf });
   }
 
-  /** Natürliche Breite der längsten Zeile einer Seite bei 100px Schriftgröße. */
-  function naturalWidth(page) {
+  /** Natürliche Breiten (bei 100px) aller Textzeilen einer Seite und die längste. */
+  function naturalWidths(page) {
     if (widthCache.has(page)) return widthCache.get(page);
     const probe = document.createElement("div");
     probe.style.cssText = `position:absolute;visibility:hidden;left:-99999px;top:0;font-family:${FONT};font-size:100px;white-space:nowrap;direction:rtl;`;
-    const lines = isOpeningPage(page)
-      ? [REFERENCE_LINE]
-      : Q.linesOfPage(page)
-          .filter((l) => l.kind === "t")
-          .map((l) => l.tokens.map((t) => t.text));
-    probe.innerHTML = lines.map((words) => `<div style="display:inline-flex;column-gap:${GAP_EM}em">${words.map((w) => `<span>${escapeHtml(w)}</span>`).join("")}</div><br>`).join("");
+    const textLines = Q.linesOfPage(page).filter((l) => l.kind === "t");
+    const rows = textLines.map((l) => l.tokens.map((t) => t.text));
+    if (isOpeningPage(page)) rows.push(REFERENCE_LINE);
+    probe.innerHTML = rows.map((words) => `<div style="display:inline-flex;column-gap:0.18em">${words.map((w) => `<span>${escapeHtml(w)}</span>`).join("")}</div><br>`).join("");
     document.body.appendChild(probe);
-    let max = 0;
-    for (const el of probe.children) if (el.tagName === "DIV") max = Math.max(max, el.getBoundingClientRect().width);
+    const widths = Array.from(probe.querySelectorAll("div")).map((el) => el.getBoundingClientRect().width);
     probe.remove();
-    if (max > 0) widthCache.set(page, max);
-    return max;
+    const byLine = new Map(textLines.map((l, i) => [l.line, widths[i]]));
+    const max = isOpeningPage(page) ? widths[widths.length - 1] : Math.max(0, ...widths);
+    const res = { max, byLine };
+    if (max > 0) widthCache.set(page, res);
+    return res;
   }
 
-  /** Schriftgröße so wählen, dass die längste Zeile der Seite genau passt. */
+  /**
+   * Schriftgröße so wählen, dass die längste Zeile der Seite genau passt
+   * (höchstens 40 Einheiten wie in der Vorlage). Kurze Schlusszeilen einer
+   * Sure stehen mittig, alle anderen Zeilen im Blocksatz.
+   */
   function fit(container) {
     const figures = container.querySelectorAll(".mushaf-page");
     if (!figures.length) return;
-    const avail = figures[0].querySelector(".mp-lines").clientWidth;
-    if (!avail) return;
-    let size = MAX_FONT;
-    for (const f of figures) {
-      const w = naturalWidth(+f.dataset.page);
-      if (w > 0) size = Math.min(size, (avail / w) * 100 * 0.985);
+    let size = Infinity;
+    const info = [];
+    for (const fig of figures) {
+      const W = fig.clientWidth;
+      if (!W) continue;
+      const u = W / O.PAGE_W;
+      const avail = (T.right - T.left) * u;
+      const nat = naturalWidths(+fig.dataset.page);
+      size = Math.min(size, T.fontSize * u);
+      if (nat.max > 0) size = Math.min(size, (avail / nat.max) * 100 * 0.985);
+      info.push([fig, nat, avail]);
     }
+    if (!isFinite(size)) return;
     size = Math.max(MIN_FONT, Math.floor(size * 10) / 10);
     container.style.setProperty("--mushaf-size", size + "px");
+    for (const [fig, nat, avail] of info) {
+      if (isOpeningPage(+fig.dataset.page)) continue;
+      fig.querySelectorAll(".ml[data-end]").forEach((row) => {
+        const w = (nat.byLine.get(+row.dataset.line) || 0) * (size / 100);
+        row.classList.toggle("ml-center", w > 0 && w < avail * 0.8);
+      });
+    }
   }
 
   window.Mushaf = { unitHtml, pageHtml, fit };

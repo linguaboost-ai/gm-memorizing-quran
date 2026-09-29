@@ -46,6 +46,10 @@
   const DEFAULT_PREFS = { de: false };
 
   const STEPS = ["assign", "order", "link", "learn", "pause1", "review1", "pause2", "review2", "pause3", "review3", "reflect"];
+  // Die Vorbereitung (1a Emojis, 1b Reihenfolge, 1c Munāsaba, Fragment-Ansicht)
+  // ist vorerst aus dem Ablauf genommen; sie kommt später an anderer Stelle wieder.
+  const PREP_ENABLED = false;
+  const PREP_STEPS = ["assign", "order", "link"];
   const STEP_LABEL = {
     assign: "1a Emojis",
     order: "1b Reihenfolge",
@@ -226,7 +230,7 @@
       {
         mode,
         ref: { page: ref.page, part: ref.part, surah: ref.surah },
-        step: "assign",
+        step: stepsOf(info)[0],
         levels: new Array(info.words.length).fill(0),
         emojis: new Array(info.fragments.length).fill(null),
         palette: Prep.palette(info.fragments),
@@ -247,8 +251,13 @@
   }
 
   /** Passt die Sitzung zu diesem Abschnitt? (sonst neu beginnen) */
-  const sessionFits = (s, ref, info) =>
-    !!s && s.ref.page === ref.page && s.ref.part === ref.part && (s.ref.surah || 0) === (ref.surah || 0) && s.levels.length === info.words.length && Array.isArray(s.linkPlaced) && s.linkPlaced.length === (info.mun ? info.mun.length : 0);
+  function sessionFits(s, ref, info) {
+    const fits =
+      !!s && s.ref.page === ref.page && s.ref.part === ref.part && (s.ref.surah || 0) === (ref.surah || 0) && s.levels.length === info.words.length && Array.isArray(s.linkPlaced) && s.linkPlaced.length === (info.mun ? info.mun.length : 0);
+    // Schritt, den es (nicht mehr) gibt: beim ersten Schritt weitermachen
+    if (fits && !stepsOf(info).includes(s.step)) s.step = stepsOf(info)[0];
+    return fits;
+  }
 
   /** Munāsaba erst anzeigen, wenn sie in 1c richtig eingesetzt wurde. */
   const munReady = (s, info) => !!info.mun && s.linkPlaced.length > 0 && s.linkPlaced.every(Boolean);
@@ -256,11 +265,14 @@
   /** Emojis der Fragmente; im Testmodus übersprungene aus der Vorlage. */
   const emojisOf = (s, info) => info.fragments.map((f, i) => s.emojis[i] || f.emoji || null);
 
-  const viewOf = (s) => (s.view === "mushaf" ? "mushaf" : "frag");
+  const viewOf = (s) => (PREP_ENABLED && s.view !== "mushaf" ? "frag" : "mushaf");
   const showOf = (s) => Object.assign({ emoji: true, mun: true }, s.show);
 
   /** Schritte dieses Abschnitts: 1c nur, wenn es eine Munāsaba gibt. */
-  const stepsOf = (info) => (info && info.mun ? STEPS : STEPS.filter((x) => x !== "link"));
+  function stepsOf(info) {
+    if (!PREP_ENABLED) return STEPS.filter((x) => !PREP_STEPS.includes(x));
+    return info && info.mun ? STEPS : STEPS.filter((x) => x !== "link");
+  }
 
   /* ------------------------------------------------------------ Navigation */
 
@@ -417,7 +429,7 @@
       <span class="label">So sieht dein Plan aus</span>
       <div class="summary-row"><b>${days.length}</b> ${days.length === 1 ? "Lerntag" : "Lerntage"} · je ca. ${pagesLabel(draft.daily)}</div>
       <small>${units} Seitenviertel · voraussichtlich fertig: ${dateLabel(last)}${last.getFullYear() !== new Date().getFullYear() ? last.getFullYear() : ""}<br>
-      Jedes Viertel: Vorbereitung mit Emojis, Auswendiglernen mit Pausen von 1, 2 und 4 Minuten, Abschluss.</small>`;
+      Jedes Viertel: Auswendiglernen im Mushaf mit Pausen von 1, 2 und 4 Minuten, Abschluss.</small>`;
   }
 
   async function afterSetup() {
@@ -857,7 +869,7 @@
       show ? `<label class="switch-row"><input type="checkbox" class="switch" data-action="pref" data-value="${key}" ${on[key] ? "checked" : ""} />${label}</label>` : "";
     return `
       <div class="section-label">${status}</div>
-      <div class="view-bar">
+      ${PREP_ENABLED ? `<div class="view-bar">
         <div class="seg view-switch" role="group" aria-label="Ansicht">
           <button class="seg-btn ${!frag ? "on" : ""}" data-action="view" data-value="mushaf" aria-pressed="${!frag}">Mushaf</button>
           <button class="seg-btn ${frag ? "on" : ""}" data-action="view" data-value="frag" aria-pressed="${frag}">Fragmente</button>
@@ -871,9 +883,9 @@
         </div>`
             : ""
         }
-      </div>
+      </div>` : ""}
       <div class="range-caption">${esc(info.label)} · Seite ${pages.join("–")}${info.tail ? `<br><span class="next-note">Blau: Anfang des nächsten Verses als Anschluss</span>` : ""}</div>
-      ${frag ? `<div class="read-wrap" id="read">${readHtml(s, info)}</div>` : `<div class="mushaf" id="mushaf">${mushafHtml(s, info)}</div>`}`;
+      ${frag ? `<div class="read-wrap" id="read">${readHtml(s, info)}</div>` : `<div class="mushaf full" id="mushaf">${mushafHtml(s, info)}</div>`}`;
   }
 
   const levelsOf = (s) => (s.step === "learn" ? s.levels : s.levels.map(() => Fade.PARTS));

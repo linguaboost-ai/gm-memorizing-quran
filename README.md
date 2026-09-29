@@ -5,8 +5,14 @@ Ausgabe), mit Rezitation, Vorbereitung über Versfragmente, schrittweisem
 Ausgrauen und sinnvoll gefüllten Pausen. Gestaltet nach dem Design-Kit
 „Quran verstehen lernen“ (`design-kit.zip`: Farben, DM Sans, weiße Karten,
 schwarze Hauptknöpfe, Richtig/Falsch mit Farbe und Symbol), das auf den
-„German Method – In-App-Käufe Screens“ beruht. Der Mushaf selbst bleibt in der
-blauen Madani-Ausgabe.
+„German Method – In-App-Käufe Screens“ beruht.
+
+Der Mushaf ist im Stil des blauen Madani-Mushafs gestaltet (übernommen aus
+[gm-quran-progress](https://github.com/linguaboost-ai/gm-quran-progress),
+`js/ornaments.js`): weißer Seitenrand, hellblaue Textfläche (#F0FAFF), blauer
+Rahmen mit Flechtband und Goldlinien, Eckrosetten, Kopfzeile mit Juz und
+Surenname, Seitenzahl im Medaillon, Hizb-Marken am Rand und das blau-goldene
+Surenbanner – alles als SVG-Pfade, Farben als CSS-Variablen (`--mp-*`).
 
 ## Der Plan
 
@@ -34,40 +40,25 @@ ansteuern, Timer können übersprungen werden.
 
 ## Ablauf eines Seitenviertels
 
-1. **Vorbereitung**
-   - **1a Emojis zuordnen:** Der Abschnitt in Versfragmenten untereinander
-     (getrennt bei ۘ ۚ ۖ ۗ). Die Übersetzung lässt sich ein- und ausblenden.
-     Rechts daneben eine Spalte, in die Emojis per Drag & Drop gezogen werden.
-     Für Sure Ghāfir kommen Fragmente, Übersetzung und Emojis aus
-     `ghafir.csv`.
-   - **1b Reihenfolge:** Die Emojis bleiben, die Fragmente stehen gemischt in
-     einem Auswahlrad wie beim iPhone: weiches Scrollen mit Schwung und
-     Einrasten (Wischen, Touchpad, Mausrad, Pfeile); nur das mittlere ist lesbar,
-     die Nachbarn werden stufenlos unscharf und neigen sich weg.
-     Das gesuchte Fragment wird nach oben gezogen – nur der Reihe nach, falsche
-     springen zurück.
-   - **1c Munāsaba** (wenn vorhanden): Alle Munāsaba-Teile stehen gemischt
-     untereinander und werden per Drag & Drop (oder Antippen) in die Lücken vor,
-     zwischen und nach den Fragmenten gesetzt; falsche springen zurück. Jeder
-     Teil ist eine Aussage und eine Frage, die das nächste Fragment beantwortet
-     (Munāsaba nach al-Biqāʿī). Die Emojis bleiben dabei sichtbar. Erst wenn
-     alle Teile richtig sitzen, lässt sich die Munāsaba beim Lernen einblenden.
-2. **Auswendiglernen** – zuerst in der Fragment-Ansicht mit Emojis und
-   Munāsaba (beides eingeschaltet, einzeln abschaltbar, dazu die Übersetzung),
-   per Umschalter „Mushaf | Fragmente“ auch im Madani-Mushaf; dazu die ersten drei
-   Wörter des nächsten Verses (blau) als Anschluss. Rezitation und Ausgrauen
-   sind in beiden Ansichten gleich. „Weiter“ graut bei jedem
-   Wort ein Fünftel der Zeichen aus (Buchstaben und Harakat einzeln, Shadda
-   doppelt, abgerundet), „Zurück“ holt es wieder. Nach fünf Schritten ist alles
-   ausgegraut. Dann:
+1. **Auswendiglernen** – die ganze Mushaf-Seite: der Abschnitt schwarz, die
+   ersten drei Wörter des nächsten Verses blau als Anschluss, alle übrigen Wörter
+   der Seite fast unsichtbar (Deckkraft 0,05; Surenbanner, Kopfzeile und Marken
+   bleiben). „Weiter“ graut bei jedem Wort ein Fünftel der Zeichen aus
+   (Deckkraft 0,05; Buchstaben und Harakat einzeln, Shadda doppelt, abgerundet),
+   „Zurück“ holt es wieder. Nach fünf Schritten ist alles ausgegraut. Dann:
    - **1 Minute Dhikr** (`dhikr.csv`): „Los geht's“ startet den Timer, danach
      „Ich habe … Mal geschafft.“ → Wiederholung
    - **2 Minuten Quiz** im „Wer wird Millionär“-Stil (`test_quiz.csv`), danach
      „Das habe ich heute Neues gelernt.“ → Wiederholung
    - **4 Minuten Lesetext** mit Frage (`text_quiz.txt`), danach „Das nehme ich
      von der Geschichte mit.“ → Wiederholung
-3. **Abschluss** – freiwillige Notizen: Was kann ich in 24 Stunden, in sieben
+2. **Abschluss** – freiwillige Notizen: Was kann ich in 24 Stunden, in sieben
    Tagen, in meinem Leben umsetzen?
+
+Die Vorbereitung mit Emojis, Reihenfolge und Munāsaba (1a–1c, Fragment-Ansicht;
+Code in `js/prep.js`, Inhalte aus `ghafir.csv` und `ghafir_munasaba.csv`) ist
+vorerst aus dem Ablauf genommen (`PREP_ENABLED` in `js/app.js`) und kommt später
+an anderer Stelle wieder.
 
 Rezitation: Die Verse werden lückenlos abgespielt (Web Audio, Stille zwischen
 den Versdateien gekürzt); der Anschluss wird nach dem dritten Wort über 100 ms
@@ -115,7 +106,8 @@ npm run build:content   # Adhkar, Quiz, Texte, Fragmente, Munāsaba
 | `index.html` | Einstieg |
 | `css/app.css` | Design (German Method) und Madani-Mushaf |
 | `js/quran.js` | Daten, Seiten, Suren, Seitenviertel, Tagesplan |
-| `js/mushaf.js` | Darstellung im Madani-Mushaf |
+| `js/mushaf.js` | Darstellung der Mushaf-Seite (Zeilen, Ausgrauen) |
+| `js/ornaments.js` | Rahmen, Flechtband, Banner, Medaillons als SVG-Pfade |
 | `js/fade.js` | Ausgrauen in Fünfteln |
 | `js/player.js` | Rezitatoren und lückenlose Wiedergabe |
 | `js/prep.js` | Vorbereitung: Fragmente, Emojis, Auswahlrad, Munāsaba, Fragment-Ansicht |
@@ -123,7 +115,8 @@ npm run build:content   # Adhkar, Quiz, Texte, Fragmente, Munāsaba
 | `js/app.js` | Screens, Plan, Testmodus, Ablauf |
 | `data/` | Generierte Daten |
 | `tools/` | Skripte zum Erzeugen der Daten |
-| `uthmanic.woff2` | Schrift: KFGQPC Uthmanic Script HAFS |
+| `fonts/UthmanicHafs-v-3.0.ttf` | Schrift: KFGQPC Uthmanic Script HAFS v3.0 (unverändert) |
+| `data/quarters.js` | Hizb-Viertel (Seite, Zeile) für die Randmarken |
 | `fonts/` | DM Sans (SIL Open Font License, siehe `fonts/OFL-DMSans.txt`) |
 
 ## Quellen
@@ -131,8 +124,11 @@ npm run build:content   # Adhkar, Quiz, Texte, Fragmente, Munāsaba
 - Qur'an-Text und Seiten-/Zeilenumbrüche: King Fahd Glorious Qur'an Printing
   Complex (KFGQPC Uthmanic Hafs), aufbereitet von
   [quran-text / quran.ws](https://github.com/quran-ws/quran-text), CC BY 4.0.
-  Zeichen, die die Schrift v0.09 noch nicht kennt, werden ersetzt: offene
-  Tanwīn → normale Tanwīn, Kasra mit kleinem Mīm unten → Kasratain, kleines Sīn
-  unten entfällt (ein Wort).
+  Der Text bleibt unverändert; die Schrift v3.0 kennt alle Zeichen.
+- Schrift: KFGQPC Uthmanic Script HAFS v3.0, © King Fahd Glorious Qur'an Printing
+  Complex, unverändert aus `@quran.ws/text` (darf unverändert genutzt und
+  weitergegeben werden).
+- Hizb-Viertel: [quran-meta](https://github.com/quran-center/quran-meta) 7.0.0,
+  MIT License, Copyright (c) 2020 Quran-Center (über gm-quran-progress).
 - Rezitationen: [everyayah.com](https://everyayah.com), ersatzweise
   [cdn.islamic.network](https://alquran.cloud).

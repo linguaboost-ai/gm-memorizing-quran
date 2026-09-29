@@ -21,17 +21,10 @@ const d = JSON.parse(readFileSync(join(pkgDir, "data/hafs.json"), "utf8"));
 const words = d.words;
 const W = words.length;
 
-// Die Schrift im Repository (KFGQPC Uthmanic Script HAFS v0.09) kennt einige
-// Zeichen der neueren Textfassung nicht (sie erscheinen als Platzhalter):
-//   offene Tanwīn (U+08F0–08F2)            → normale Tanwīn
-//   Kasra + kleines Mīm unten (U+06ED)      → Kasratain (Tanwīn bleibt erkennbar)
-//   kleines Sīn unten (U+06E3, ein Wort)    → entfällt
-const FIX = { "ࣰ": "ً", "ࣱ": "ٌ", "ࣲ": "ٍ" };
-const fix = (s) =>
-  s
-    .replace(/[ࣰ-ࣲ]/g, (c) => FIX[c])
-    .replace(/ِۭ/g, "ٍ")
-    .replace(/[ۭۣ]/g, "");
+// Die App nutzt die Schrift KFGQPC Uthmanic Script HAFS v3.0
+// (fonts/UthmanicHafs-v-3.0.ttf, unverändert aus @quran.ws/text), die alle
+// Zeichen dieser Textfassung kennt. Der Text bleibt darum unverändert.
+const fix = (s) => s;
 
 const toArabicDigits = (n) => String(n).replace(/\d/g, (c) => "٠١٢٣٤٥٦٧٨٩"[c]);
 
@@ -128,7 +121,8 @@ for (let s = 0; s < 114; s++) {
       if (before.has(i)) tokens.push([ayah, before.get(i), 2]);
       tokens.push([ayah, fix(words[i]) + (after.get(i) || "")]);
       const nextAyahStart = ayahStarts[ayahIdxOfWord(i) + 1] ?? W;
-      if (i === nextAyahStart - 1) tokens.push([ayah, toArabicDigits(ayah), 1]);
+      // Versende: ۝ mit der Versnummer, die Schrift v3.0 setzt daraus das Versende-Zeichen
+      if (i === nextAyahStart - 1) tokens.push([ayah, "\u06DD" + toArabicDigits(ayah), 1]);
     }
     lines.push([li.page, li.line, "t", tokens]);
     juz[li.page] = juzOfWord(li.start);
