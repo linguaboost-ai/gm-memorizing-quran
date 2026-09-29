@@ -203,7 +203,8 @@
     const unit = list[idx];
     const words = Quran.wordsOf(unit);
     const fragments = Prep.fragmentsOf(unit);
-    const shapes = words.map((w) => Fade.analyze(w.text));
+    // Ausgrauen nach der dargestellten Form (mit Kaschida); Tatweel zählt nicht mit
+    const shapes = words.map((w) => Fade.analyze(w.display));
     const wordIndex = new Map(words.map((w, i) => [w, i]));
     const tail = Quran.tailOf(unit, TAIL_WORDS);
     const info = {

@@ -48,18 +48,22 @@
   function prepare(raw) {
     const meta = surahs[raw.n - 1];
     const surah = { n: raw.n, meta, juz: raw.juz, lines: [], ayahs: [] };
-    for (const [page, line, kind, rawTokens] of raw.lines) {
+    for (const [page, line, kind, rawTokens, info] of raw.lines) {
       const height = SHORT_PAGES[page] ? LINES_PER_PAGE / SHORT_PAGES[page] : 1;
       const pos = (page - 1) * LINES_PER_PAGE + (line - 1) * height;
-      const entry = { surah: raw.n, page, line, kind, pos, height, tokens: [] };
+      // info: Blocksatz ({ c: 1 } mittig, { w } Zeilenbreite auf S. 1–2)
+      const entry = { surah: raw.n, page, line, kind, pos, height, tokens: [], info: info || null };
       if (kind === "t") {
         const count = rawTokens.length;
-        rawTokens.forEach(([ayah, text, type = TOKEN_WORD], i) => {
+        // display: Wort mit Kaschida (Tatweel) für den Blocksatz, sonst wie text
+        rawTokens.forEach(([ayah, text, rawType, display], i) => {
+          const type = rawType == null ? TOKEN_WORD : rawType;
           const token = {
             surah: raw.n,
             ayah,
             key: `${raw.n}:${ayah}`,
             text,
+            display: display || text,
             type,
             start: pos + (i / count) * height,
             end: pos + ((i + 1) / count) * height,

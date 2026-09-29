@@ -4,7 +4,10 @@
  *
  * Es wird immer die ganze Seite gezeigt: Rahmen, Kopfzeile, Surenbanner und
  * Seitenzahl als SVG (Seite 1000 × 1414 Einheiten), darüber die 15 Zeilen als
- * Text (für das Ausgrauen einzelner Buchstaben). Beim Lernen ist der Abschnitt
+ * Text (für das Ausgrauen einzelner Buchstaben). Die Zeilen stehen im
+ * Blocksatz wie im gedruckten Mushaf: Die Wörter kommen mit Kaschida (gedehnten
+ * Buchstaben) aus den Daten (tools/kashida.mjs), die Schrift hat die feste
+ * Größe von 40 Einheiten, den Rest übernehmen die Wortabstände. Beim Lernen ist der Abschnitt
  * schwarz, der Anschluss blau und alle übrigen Wörter der Seite sind fast
  * unsichtbar (Deckkraft 0,05). Surenbanner, Kopfzeile und Randmarken bleiben.
  */
@@ -17,11 +20,7 @@
   const { escapeHtml, wordHtml } = window.Fade;
   const T = O.TEXT;
 
-  const FONT = "UthmanicHafs";
   const MIN_FONT = 6;
-  const widthCache = new Map();
-  // Eine volle Zeile (Seite 3, Zeile 1) als Maßstab für die kurzen Zeilen der Eröffnungsseiten
-  const REFERENCE_LINE = "إِنَّ ٱلَّذِينَ كَفَرُواْ سَوَآءٌ عَلَيۡهِمۡ ءَأَنذَرۡتَهُمۡ أَمۡ لَمۡ تُنذِرۡهُمۡ".split(" ");
   const SHORT_PAGE_LINES = 8;
 
   /** Seiten 1 und 2 haben im Mushaf kürzere, zentrierte Zeilen im Oval. */
@@ -36,11 +35,11 @@
 
   const pct = (v, of) => `${((v / of) * 100).toFixed(3)}%`;
 
-  /** Lage einer Zeile in Seiteneinheiten. */
-  function rowBox(page, lineNo) {
+  /** Lage einer Zeile in Seiteneinheiten (info.w: Satzbreite aus dem Blocksatz). */
+  function rowBox(page, lineNo, info) {
     if (!isOpeningPage(page)) return { x: T.left, w: T.right - T.left, y: T.top + (lineNo - 1) * T.pitch };
     const y = O.SPECIAL.cy - (SHORT_PAGE_LINES * T.pitch) / 2 + (lineNo - 1) * T.pitch;
-    const w = Math.min(T.right - T.left, O.ovalWidth(y + T.pitch / 2));
+    const w = info && info.w ? info.w : Math.min(T.right - T.left, O.ovalWidth(y + T.pitch / 2));
     return { x: O.PAGE_W / 2 - w / 2, w, y };
   }
 
@@ -49,7 +48,7 @@
   function tokenHtml(token, ctx) {
     const cls = ["t"];
     let attrs = "";
-    let inner = escapeHtml(token.text);
+    let inner = escapeHtml(token.display || token.text);
     if (ctx.mode === "page") {
       const q = ctx.partOf.get(token.key);
       if (q === undefined) cls.push("prev");
@@ -79,7 +78,7 @@
     const banners = [];
     const rows = [];
     for (const l of lines) {
-      const box = rowBox(page, l.line);
+      const box = rowBox(page, l.line, l.info);
       if (l.kind === "h") {
         banners.push(Object.assign({ surahAr: Q.meta(l.surah).ar, y0: box.y }, isOpeningPage(page) ? { x: box.x, w: box.w } : {}));
         continue;
@@ -91,9 +90,9 @@
         rows.push(`<div class="ml ml-basmala ml-center" style="${rowStyle(box)}"><span class="${cls}">${escapeHtml(Q.basmala)}</span></div>`);
         continue;
       }
-      // Letzte Zeile einer Sure: darf mittig stehen, wenn sie kurz ist
-      const ends = l.tokens.some((t) => t.type === TOKEN_AYAH_END && t.ayah === Q.meta(t.surah).ayahs);
-      rows.push(`<div class="ml${isOpeningPage(page) ? " ml-center" : ""}" data-line="${l.line}"${ends ? " data-end" : ""} style="${rowStyle(box)}">${l.tokens.map((t) => tokenHtml(t, ctx)).join("")}</div>`);
+      // mittig: kurze Schlusszeilen einer Sure (aus dem Blocksatz)
+      const center = l.info && l.info.c;
+      rows.push(`<div class="ml${center ? " ml-center" : ""}" data-line="${l.line}" style="${rowStyle(box)}">${l.tokens.map((t) => tokenHtml(t, ctx)).join("")}</div>`);
     }
     const quarters = (quartersByPage.get(page) || []).map(({ q, line }) => ({ q, y: rowBox(page, line + 1).y + T.pitch / 2 }));
     const svg = O.pageSvg({ page, juz: Q.juzOfPage(page), surahAr: Q.meta(top.surah).ar, quarters, banners });
@@ -127,53 +126,24 @@
     return figureHtml(page, { mode: "page", partOf });
   }
 
-  /** Natürliche Breiten (bei 100px) aller Textzeilen einer Seite und die längste. */
-  function naturalWidths(page) {
-    if (widthCache.has(page)) return widthCache.get(page);
-    const probe = document.createElement("div");
-    probe.style.cssText = `position:absolute;visibility:hidden;left:-99999px;top:0;font-family:${FONT};font-size:100px;white-space:nowrap;direction:rtl;`;
-    const textLines = Q.linesOfPage(page).filter((l) => l.kind === "t");
-    const rows = textLines.map((l) => l.tokens.map((t) => t.text));
-    if (isOpeningPage(page)) rows.push(REFERENCE_LINE);
-    probe.innerHTML = rows.map((words) => `<div style="display:inline-flex;column-gap:0.18em">${words.map((w) => `<span>${escapeHtml(w)}</span>`).join("")}</div><br>`).join("");
-    document.body.appendChild(probe);
-    const widths = Array.from(probe.querySelectorAll("div")).map((el) => el.getBoundingClientRect().width);
-    probe.remove();
-    const byLine = new Map(textLines.map((l, i) => [l.line, widths[i]]));
-    const max = isOpeningPage(page) ? widths[widths.length - 1] : Math.max(0, ...widths);
-    const res = { max, byLine };
-    if (max > 0) widthCache.set(page, res);
-    return res;
-  }
-
   /**
-   * Schriftgröße so wählen, dass die längste Zeile der Seite genau passt
-   * (höchstens 40 Einheiten wie in der Vorlage). Kurze Schlusszeilen einer
-   * Sure stehen mittig, alle anderen Zeilen im Blocksatz.
+   * Schriftgröße wie in der Vorlage: 40 Einheiten bei 1000 Einheiten
+   * Seitenbreite. Formt ein Browser ein Wort etwas breiter als HarfBuzz, wird
+   * die Zeile minimal gestaucht, damit sie nicht über den Rand läuft.
    */
   function fit(container) {
     const figures = container.querySelectorAll(".mushaf-page");
     if (!figures.length) return;
-    let size = Infinity;
-    const info = [];
-    for (const fig of figures) {
-      const W = fig.clientWidth;
-      if (!W) continue;
-      const u = W / O.PAGE_W;
-      const avail = (T.right - T.left) * u;
-      const nat = naturalWidths(+fig.dataset.page);
-      size = Math.min(size, T.fontSize * u);
-      if (nat.max > 0) size = Math.min(size, (avail / nat.max) * 100 * 0.985);
-      info.push([fig, nat, avail]);
-    }
-    if (!isFinite(size)) return;
-    size = Math.max(MIN_FONT, Math.floor(size * 10) / 10);
+    const W = figures[0].clientWidth;
+    if (!W) return;
+    const size = Math.max(MIN_FONT, Math.floor(((T.fontSize * W) / O.PAGE_W) * 100) / 100);
     container.style.setProperty("--mushaf-size", size + "px");
-    for (const [fig, nat, avail] of info) {
-      if (isOpeningPage(+fig.dataset.page)) continue;
-      fig.querySelectorAll(".ml[data-end]").forEach((row) => {
-        const w = (nat.byLine.get(+row.dataset.line) || 0) * (size / 100);
-        row.classList.toggle("ml-center", w > 0 && w < avail * 0.8);
+    for (const fig of figures) {
+      fig.querySelectorAll(".ml").forEach((row) => {
+        row.style.transform = "";
+        const need = row.scrollWidth;
+        const have = row.clientWidth;
+        if (need > have + 0.5) row.style.transform = `scaleX(${(have / need).toFixed(4)})`;
       });
     }
   }

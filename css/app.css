@@ -1077,10 +1077,12 @@ button {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  column-gap: 0.18em;
+  /* kleinster Wortabstand im Blocksatz: 0,55 × Leerzeichen der Schrift */
+  column-gap: 0.121em;
   white-space: nowrap;
   line-height: 1;
   padding-top: 0.12em;
+  transform-origin: right center;
 }
 
 .ml-center {

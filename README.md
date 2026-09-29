@@ -14,6 +14,14 @@ Rahmen mit Flechtband und Goldlinien, Eckrosetten, Kopfzeile mit Juz und
 Surenname, Seitenzahl im Medaillon, Hizb-Marken am Rand und das blau-goldene
 Surenbanner – alles als SVG-Pfade, Farben als CSS-Variablen (`--mp-*`).
 
+Die Zeilen stehen im Blocksatz wie im gedruckten Mushaf: Sie werden vor allem
+durch die Kaschida-Formen der Schrift (gedehnte Buchstaben) auf volle Breite
+gebracht und erst danach über die Wortabstände. `tools/kashida.mjs` rechnet das
+beim `npm run build:data` mit HarfBuzz vor (Verfahren aus gm-quran-progress) und
+legt je Wort die gedehnte Form ab (Tatweel, aus dem die Schrift ihre gedehnten
+Buchstaben bildet). Kurze Schlusszeilen einer Sure stehen mittig, auf den
+Seiten 1 und 2 folgt die Zeilenbreite dem Oval.
+
 ## Der Plan
 
 Ein Schritt pro Screen:
@@ -114,7 +122,7 @@ npm run build:content   # Adhkar, Quiz, Texte, Fragmente, Munāsaba
 | `js/activities.js` | Pausen: Dhikr, Quiz, Lesetext |
 | `js/app.js` | Screens, Plan, Testmodus, Ablauf |
 | `data/` | Generierte Daten |
-| `tools/` | Skripte zum Erzeugen der Daten |
+| `tools/` | Skripte zum Erzeugen der Daten, `kashida.mjs` für den Blocksatz |
 | `fonts/UthmanicHafs-v-3.0.ttf` | Schrift: KFGQPC Uthmanic Script HAFS v3.0 (unverändert) |
 | `data/quarters.js` | Hizb-Viertel (Seite, Zeile) für die Randmarken |
 | `fonts/` | DM Sans (SIL Open Font License, siehe `fonts/OFL-DMSans.txt`) |
@@ -128,6 +136,9 @@ npm run build:content   # Adhkar, Quiz, Texte, Fragmente, Munāsaba
 - Schrift: KFGQPC Uthmanic Script HAFS v3.0, © King Fahd Glorious Qur'an Printing
   Complex, unverändert aus `@quran.ws/text` (darf unverändert genutzt und
   weitergegeben werden).
+- Blocksatz: [harfbuzzjs](https://github.com/harfbuzz/harfbuzzjs) (MIT,
+  `tools/vendor/harfbuzzjs`), Ligatur-Tabelle `tools/vendor/ligatures.json` aus
+  gm-quran-progress; beides nur beim Erzeugen der Daten.
 - Hizb-Viertel: [quran-meta](https://github.com/quran-center/quran-meta) 7.0.0,
   MIT License, Copyright (c) 2020 Quran-Center (über gm-quran-progress).
 - Rezitationen: [everyayah.com](https://everyayah.com), ersatzweise

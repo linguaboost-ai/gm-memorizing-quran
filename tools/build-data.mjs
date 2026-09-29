@@ -5,7 +5,9 @@
 //
 // Ausgabe:
 //   data/surahs.js          Metadaten aller 114 Suren
-//   data/surah/NNN.js       Zeilen jeder Sure: [seite, zeile, art, tokens]
+//   data/surah/NNN.js       Zeilen jeder Sure: [seite, zeile, art, tokens, darstellung]
+//                           token: [vers, text, typ, gedehnter text (Kaschida)]
+//                           darstellung: { c: 1 } mittig, { w } Zeilenbreite (S. 1–2)
 //
 // Die Dateien sind klassische Skripte (kein JSON), damit die App auch direkt
 // per Doppelklick (file://) funktioniert.
@@ -13,6 +15,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { Justifier } from "./kashida.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const pkgDir = join(root, "node_modules/@quran.ws/text");
@@ -104,6 +107,11 @@ const GERMAN = [
 
 mkdirSync(join(root, "data/surah"), { recursive: true });
 
+// Blocksatz mit Kaschida wie im gedruckten Mushaf (tools/kashida.mjs)
+const justifier = new Justifier();
+let stretchedWords = 0;
+const linesOnPage = (page) => (page <= 2 ? 8 : 15);
+
 const meta = [];
 for (let s = 0; s < 114; s++) {
   const info = d.surahs[s];
@@ -143,6 +151,7 @@ for (let s = 0; s < 114; s++) {
     p1: last[0],
     size: Math.round(size * 100) / 100,
   });
+  stretchedWords += justifier.justifySurah(lines, info.ayah_count, linesOnPage);
   const file = `window.QURAN_SURAH_DATA=window.QURAN_SURAH_DATA||{};QURAN_SURAH_DATA[${n}]=${JSON.stringify({ n, juz, lines })};\n`;
   writeFileSync(join(root, `data/surah/${String(n).padStart(3, "0")}.js`), file);
 }
@@ -166,4 +175,4 @@ writeFileSync(
     `window.QURAN_JUZ=${JSON.stringify(juzMeta)};\n`
 );
 
-console.log(`114 Suren geschrieben, ${W} Wörter, ${lineInfo.length} Textzeilen.`);
+console.log(`114 Suren geschrieben, ${W} Wörter, ${lineInfo.length} Textzeilen, ${stretchedWords} Wörter mit Kaschida.`);
