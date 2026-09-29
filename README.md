@@ -14,13 +14,16 @@ Rahmen mit Flechtband und Goldlinien, Eckrosetten, Kopfzeile mit Juz und
 Surenname, Seitenzahl im Medaillon, Hizb-Marken am Rand und das blau-goldene
 Surenbanner – alles als SVG-Pfade, Farben als CSS-Variablen (`--mp-*`).
 
-Die Zeilen stehen im Blocksatz wie im gedruckten Mushaf: Sie werden vor allem
-durch die Kaschida-Formen der Schrift (gedehnte Buchstaben) auf volle Breite
-gebracht und erst danach über die Wortabstände. `tools/kashida.mjs` rechnet das
-beim `npm run build:data` mit HarfBuzz vor (Verfahren aus gm-quran-progress) und
-legt je Wort die gedehnte Form ab (Tatweel, aus dem die Schrift ihre gedehnten
-Buchstaben bildet). Kurze Schlusszeilen einer Sure stehen mittig, auf den
-Seiten 1 und 2 folgt die Zeilenbreite dem Oval.
+Seiten, Zeilen und Schriftbild folgen der Madina-Ausgabe 1405 H (wie auf
+quranacademy.org und quran.com): gleiche Seiten- und Zeilenumbrüche, die
+Schreibweise mit gedehnten Buchstaben (Tatweel) und die Schrift KFGQPC HAFS
+v1.001 mit ihren Sonderformen (gestreckte Kāf, übereinander gesetzte
+Buchstaben). `tools/madina1405.mjs` ordnet beim `npm run build:data` jedem Wort
+Seite, Zeile und Schreibweise der Ausgabe 1405 zu (Daten aus quran-madina-html).
+In der App wird jede Zeile wie dort mit einfachem Leerzeichen gesetzt und
+waagerecht auf die Satzbreite gestreckt bzw. gestaucht (`Mushaf.fit`). Kurze
+Schlusszeilen stehen mittig; auf den Seiten 1 und 2 folgt die Zeilenbreite dem
+Oval. Die Versende-Medaillons kommen aus der Schrift v3.0.
 
 ## Der Plan
 
@@ -122,24 +125,28 @@ npm run build:content   # Adhkar, Quiz, Texte, Fragmente, Munāsaba
 | `js/activities.js` | Pausen: Dhikr, Quiz, Lesetext |
 | `js/app.js` | Screens, Plan, Testmodus, Ablauf |
 | `data/` | Generierte Daten |
-| `tools/` | Skripte zum Erzeugen der Daten, `kashida.mjs` für den Blocksatz |
+| `tools/` | Skripte zum Erzeugen der Daten, `madina1405.mjs` für Seiten und Zeilen der Ausgabe 1405 |
+| `fonts/KFGQPC-HAFS-Uthmanic-v1.001.woff2` | Mushaf-Schrift: KFGQPC HAFS Uthmanic Script v1.001 (Lizenz: `fonts/WAQF-LICENSE-Hafs-v1.001.md`) |
 | `fonts/UthmanicHafs-v-3.0.ttf` | Schrift: KFGQPC Uthmanic Script HAFS v3.0 (unverändert) |
 | `data/quarters.js` | Hizb-Viertel (Seite, Zeile) für die Randmarken |
 | `fonts/` | DM Sans (SIL Open Font License, siehe `fonts/OFL-DMSans.txt`) |
 
 ## Quellen
 
-- Qur'an-Text und Seiten-/Zeilenumbrüche: King Fahd Glorious Qur'an Printing
+- Qur'an-Text (Wörter, Verse, Juz): King Fahd Glorious Qur'an Printing
   Complex (KFGQPC Uthmanic Hafs), aufbereitet von
   [quran-text / quran.ws](https://github.com/quran-ws/quran-text), CC BY 4.0.
-  Der Text bleibt unverändert; die Schrift v3.0 kennt alle Zeichen.
+  Dieser Text bleibt die Grundlage (Ausgrauen, Rezitation, Übungen).
+- Seiten, Zeilen und Schreibweise der Madina-Ausgabe 1405 sowie die Schrift
+  KFGQPC HAFS Uthmanic Script v1.001: [quran-madina-html](https://github.com/tarekeldeeb/quran-madina-html)
+  1.0.1 („Madina05-Hafs“, `tools/vendor/madina05`), „Waqf“ General Public
+  License 2.0 (siehe `tools/vendor/madina05/LICENSE.md`). Schrift © King Fahd
+  Glorious Qur'an Printing Complex.
 - Schrift: KFGQPC Uthmanic Script HAFS v3.0, © King Fahd Glorious Qur'an Printing
   Complex, unverändert aus `@quran.ws/text` (darf unverändert genutzt und
   weitergegeben werden).
-- Blocksatz: [harfbuzzjs](https://github.com/harfbuzz/harfbuzzjs) (MIT,
-  `tools/vendor/harfbuzzjs`), Ligatur-Tabelle `tools/vendor/ligatures.json` aus
-  gm-quran-progress; beides nur beim Erzeugen der Daten.
 - Hizb-Viertel: [quran-meta](https://github.com/quran-center/quran-meta) 7.0.0,
-  MIT License, Copyright (c) 2020 Quran-Center (über gm-quran-progress).
+  MIT License, Copyright (c) 2020 Quran-Center (`tools/vendor/quarters-hafs.json`);
+  Seite und Zeile werden für die Ausgabe 1405 neu berechnet.
 - Rezitationen: [everyayah.com](https://everyayah.com), ersatzweise
   [cdn.islamic.network](https://alquran.cloud).

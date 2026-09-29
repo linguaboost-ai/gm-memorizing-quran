@@ -4,12 +4,13 @@
  *
  * Es wird immer die ganze Seite gezeigt: Rahmen, Kopfzeile, Surenbanner und
  * Seitenzahl als SVG (Seite 1000 × 1414 Einheiten), darüber die 15 Zeilen als
- * Text (für das Ausgrauen einzelner Buchstaben). Die Zeilen stehen im
- * Blocksatz wie im gedruckten Mushaf: Die Wörter kommen mit Kaschida (gedehnten
- * Buchstaben) aus den Daten (tools/kashida.mjs), die Schrift hat die feste
- * Größe von 40 Einheiten, den Rest übernehmen die Wortabstände. Beim Lernen ist der Abschnitt
- * schwarz, der Anschluss blau und alle übrigen Wörter der Seite sind fast
- * unsichtbar (Deckkraft 0,05). Surenbanner, Kopfzeile und Randmarken bleiben.
+ * Text (für das Ausgrauen einzelner Buchstaben). Seiten, Zeilen und
+ * Schreibweise folgen der Madina-Ausgabe 1405 (tools/madina1405.mjs), gesetzt
+ * in KFGQPC HAFS v1.001 wie bei quran-madina-html: Wörter mit einfachem
+ * Leerzeichen, jede Zeile auf die Satzbreite gestreckt bzw. gestaucht. Beim
+ * Lernen ist der Abschnitt schwarz, der Anschluss blau und alle übrigen Wörter
+ * der Seite sind fast unsichtbar (Deckkraft 0,05). Surenbanner, Kopfzeile und
+ * Randmarken bleiben.
  */
 (function () {
   "use strict";
@@ -21,6 +22,8 @@
   const T = O.TEXT;
 
   const MIN_FONT = 6;
+  /** Schriftgröße wie in der Vorlage: 24 px auf 410 px Satzbreite. */
+  const FONT = (24 * (T.right - T.left)) / 410;
   const SHORT_PAGE_LINES = 8;
 
   /** Seiten 1 und 2 haben im Mushaf kürzere, zentrierte Zeilen im Oval. */
@@ -35,11 +38,11 @@
 
   const pct = (v, of) => `${((v / of) * 100).toFixed(3)}%`;
 
-  /** Lage einer Zeile in Seiteneinheiten (info.w: Satzbreite aus dem Blocksatz). */
-  function rowBox(page, lineNo, info) {
+  /** Lage einer Zeile in Seiteneinheiten. */
+  function rowBox(page, lineNo) {
     if (!isOpeningPage(page)) return { x: T.left, w: T.right - T.left, y: T.top + (lineNo - 1) * T.pitch };
     const y = O.SPECIAL.cy - (SHORT_PAGE_LINES * T.pitch) / 2 + (lineNo - 1) * T.pitch;
-    const w = info && info.w ? info.w : Math.min(T.right - T.left, O.ovalWidth(y + T.pitch / 2));
+    const w = Math.min(T.right - T.left, O.ovalWidth(y + T.pitch / 2));
     return { x: O.PAGE_W / 2 - w / 2, w, y };
   }
 
@@ -78,7 +81,7 @@
     const banners = [];
     const rows = [];
     for (const l of lines) {
-      const box = rowBox(page, l.line, l.info);
+      const box = rowBox(page, l.line);
       if (l.kind === "h") {
         banners.push(Object.assign({ surahAr: Q.meta(l.surah).ar, y0: box.y }, isOpeningPage(page) ? { x: box.x, w: box.w } : {}));
         continue;
@@ -87,10 +90,10 @@
         let cls = "t b";
         if (ctx.mode === "page") cls += ctx.partOf.has(`${l.surah}:1`) ? "" : " prev";
         else if (!ctx.keys.has(`${l.surah}:1`)) cls += " rest";
-        rows.push(`<div class="ml ml-basmala ml-center" style="${rowStyle(box)}"><span class="${cls}">${escapeHtml(Q.basmala)}</span></div>`);
+        rows.push(`<div class="ml ml-basmala ml-center" style="${rowStyle(box)}"><span class="${cls}">${escapeHtml(Q.basmalaMushaf)}</span></div>`);
         continue;
       }
-      // mittig: kurze Schlusszeilen einer Sure (aus dem Blocksatz)
+      // mittig: kurze Schlusszeilen einer Sure, Seiten 1–2
       const center = l.info && l.info.c;
       rows.push(`<div class="ml${center ? " ml-center" : ""}" data-line="${l.line}" style="${rowStyle(box)}">${l.tokens.map((t) => tokenHtml(t, ctx)).join("")}</div>`);
     }
@@ -126,26 +129,61 @@
     return figureHtml(page, { mode: "page", partOf });
   }
 
+  /** Breite des Zeileninhalts (ohne Streckung). */
+  const range = document.createRange();
+  function naturalWidth(row) {
+    range.selectNodeContents(row);
+    return range.getBoundingClientRect().width;
+  }
+
+  /** Stärkste Stauchung auf den Seiten 1–2, darüber wird die Schrift kleiner. */
+  const OPENING_MIN_SCALE = 0.85;
+
+  /** Streckfaktor je Zeile (1 = passt schon). */
+  function scaleOf(row) {
+    const need = naturalWidth(row);
+    const have = row.clientWidth;
+    if (!need || !have) return 1;
+    const center = row.classList.contains("ml-center");
+    return (center ? need > have + 0.5 : Math.abs(need - have) > 0.5) ? have / need : 1;
+  }
+
   /**
-   * Schriftgröße wie in der Vorlage: 40 Einheiten bei 1000 Einheiten
-   * Seitenbreite. Formt ein Browser ein Wort etwas breiter als HarfBuzz, wird
-   * die Zeile minimal gestaucht, damit sie nicht über den Rand läuft.
+   * Schrift in fester Größe (FONT Einheiten bei 1000 Einheiten Seitenbreite),
+   * dann jede Zeile waagerecht auf die Satzbreite gebracht wie in der
+   * Madina-Ausgabe 1405 (dort Faktor 0,7–1,06). Mittige Zeilen werden nur
+   * gestaucht, falls sie zu breit sind. Im Oval der Seiten 1–2 sind die
+   * Zeilen kürzer, dort wird notfalls die ganze Schrift etwas kleiner.
    */
   function fit(container) {
-    const figures = container.querySelectorAll(".mushaf-page");
+    const figures = Array.from(container.querySelectorAll(".mushaf-page"));
     if (!figures.length) return;
     const W = figures[0].clientWidth;
     if (!W) return;
-    const size = Math.max(MIN_FONT, Math.floor(((T.fontSize * W) / O.PAGE_W) * 100) / 100);
+    const size = Math.max(MIN_FONT, Math.floor(((FONT * W) / O.PAGE_W) * 100) / 100);
     container.style.setProperty("--mushaf-size", size + "px");
-    for (const fig of figures) {
-      fig.querySelectorAll(".ml").forEach((row) => {
-        row.style.transform = "";
-        const need = row.scrollWidth;
-        const have = row.clientWidth;
-        if (need > have + 0.5) row.style.transform = `scaleX(${(have / need).toFixed(4)})`;
-      });
+    // erst alle messen, dann alle setzen (ein Layout statt eines je Zeile)
+    const pages = figures.map((fig) => {
+      const layer = fig.querySelector(".mp-rows");
+      if (layer) layer.style.fontSize = "";
+      const rows = Array.from(fig.querySelectorAll(".ml"));
+      for (const row of rows) row.style.transform = "";
+      return { fig, layer, rows };
+    });
+    for (const pg of pages) pg.scales = pg.rows.map(scaleOf);
+    for (const pg of pages) {
+      if (!pg.layer || !isOpeningPage(Number(pg.fig.dataset.page))) continue;
+      // die Breite wächst nicht ganz proportional zur Schriftgröße: bis zu drei Schritte
+      let font = size;
+      for (let k = 0; k < 3; k++) {
+        const min = Math.min(1, ...pg.scales);
+        if (min >= OPENING_MIN_SCALE - 0.005) break;
+        font = (font * min) / OPENING_MIN_SCALE;
+        pg.layer.style.fontSize = font.toFixed(2) + "px";
+        pg.scales = pg.rows.map(scaleOf);
+      }
     }
+    for (const pg of pages) pg.rows.forEach((row, i) => (row.style.transform = pg.scales[i] === 1 ? "" : `scaleX(${pg.scales[i].toFixed(4)})`));
   }
 
   window.Mushaf = { unitHtml, pageHtml, fit };

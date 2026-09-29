@@ -203,7 +203,7 @@
     const unit = list[idx];
     const words = Quran.wordsOf(unit);
     const fragments = Prep.fragmentsOf(unit);
-    // Ausgrauen nach der dargestellten Form (mit Kaschida); Tatweel zählt nicht mit
+    // Ausgrauen nach der dargestellten Form (Schreibweise der Ausgabe 1405); Tatweel zählt nicht mit
     const shapes = words.map((w) => Fade.analyze(w.display));
     const wordIndex = new Map(words.map((w, i) => [w, i]));
     const tail = Quran.tailOf(unit, TAIL_WORDS);
@@ -1713,7 +1713,7 @@
   async function init() {
     render();
     try {
-      if (document.fonts && document.fonts.load) await Promise.race([document.fonts.load('20px "UthmanicHafs"'), new Promise((r) => setTimeout(r, 4000))]);
+      if (document.fonts && document.fonts.load) await Promise.race([Promise.all(['20px "UthmanicHafs"', '20px "MadinaHafs"'].map((f) => document.fonts.load(f))), new Promise((r) => setTimeout(r, 4000))]);
       await loadPlanContext();
       // Abgelaufene Timer beim Laden abschließen
       for (const s of [state.sessions.plan, state.sessions.test]) {

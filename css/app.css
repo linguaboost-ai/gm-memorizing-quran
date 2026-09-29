@@ -10,6 +10,14 @@
   font-display: block;
 }
 
+/* KFGQPC HAFS Uthmanic Script v1.001 – die Schriftfassung der Madina-Ausgabe
+   1405 (gestreckte Kāf, übereinander gesetzte Buchstaben), für die Mushaf-Seite */
+@font-face {
+  font-family: "MadinaHafs";
+  src: url("../fonts/KFGQPC-HAFS-Uthmanic-v1.001.woff2") format("woff2");
+  font-display: block;
+}
+
 @font-face {
   font-family: "DM Sans";
   src: url("../fonts/DMSans.woff2") format("woff2");
@@ -1066,23 +1074,30 @@ button {
 .mp-rows {
   position: absolute;
   inset: 0;
-  font-family: var(--ar);
+  font-family: "MadinaHafs", var(--ar);
   font-size: var(--mushaf-size);
   color: var(--mp-ink);
   direction: rtl;
 }
 
+/* Wie in der Madina-Ausgabe 1405: Wörter mit einfachem Leerzeichen, die ganze
+   Zeile wird auf die Satzbreite gestreckt oder gestaucht (Mushaf.fit) */
 .ml {
   position: absolute;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
-  /* kleinster Wortabstand im Blocksatz: 0,55 × Leerzeichen der Schrift */
-  column-gap: 0.121em;
+  /* Leerzeichen der Schrift */
+  column-gap: 0.22em;
   white-space: nowrap;
   line-height: 1;
   padding-top: 0.12em;
   transform-origin: right center;
+}
+
+/* Versende-Medaillon aus der Schrift v3.0 (۝ mit Versnummer) */
+.ml .ayah-end {
+  font-family: var(--ar);
 }
 
 .ml-center {

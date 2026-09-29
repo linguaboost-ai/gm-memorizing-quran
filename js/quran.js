@@ -51,11 +51,11 @@
     for (const [page, line, kind, rawTokens, info] of raw.lines) {
       const height = SHORT_PAGES[page] ? LINES_PER_PAGE / SHORT_PAGES[page] : 1;
       const pos = (page - 1) * LINES_PER_PAGE + (line - 1) * height;
-      // info: Blocksatz ({ c: 1 } mittig, { w } Zeilenbreite auf S. 1–2)
+      // info: { c: 1 } Zeile steht mittig
       const entry = { surah: raw.n, page, line, kind, pos, height, tokens: [], info: info || null };
       if (kind === "t") {
         const count = rawTokens.length;
-        // display: Wort mit Kaschida (Tatweel) für den Blocksatz, sonst wie text
+        // display: Wort in der Schreibweise der Madina-Ausgabe 1405 (mit Tatweel), sonst wie text
         rawTokens.forEach(([ayah, text, rawType, display], i) => {
           const type = rawType == null ? TOKEN_WORD : rawType;
           const token = {
@@ -305,5 +305,7 @@
     label,
     globalAyah,
     basmala: window.QURAN_BASMALA,
+    /** Basmala in der Schreibweise der Madina-Ausgabe 1405 (Mushaf-Seite). */
+    basmalaMushaf: window.QURAN_BASMALA_1405 || window.QURAN_BASMALA,
   };
 })();
