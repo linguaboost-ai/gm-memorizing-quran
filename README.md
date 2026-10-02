@@ -71,8 +71,9 @@ kurzen Vers (z. B. حمٓ) endet.
      Übersetzung, falls eingeschaltet). Danach verschwinden die Fragmente, ihre
      Stichpunkte mit Emoji (`ghafir_geschichte.csv`) stehen gemischt da und
      werden in die richtige Reihenfolge gebracht, zum Schluss nur noch die
-     Emojis. 5–10 Teile (bei mehr Fragmenten werden benachbarte
-     zusammengelegt). Die Aufgabe wird zu Ende geführt, auch wenn die Zeit
+     Emojis. 5–10 Teile: In kurzen Abschnitten werden lange Fragmente in
+     sinnvolle Unterteile geteilt (`ghafir_unterteile.csv`), bei mehr als zehn
+     werden benachbarte zusammengelegt. Die Aufgabe wird zu Ende geführt, auch wenn die Zeit
      vorher abläuft.
    - Nach jeder Pause: **Wiederholung** aus dem Gedächtnis.
 2. **Abschluss** – freiwillige Notizen: Was kann ich in 24 Stunden, in sieben
@@ -117,6 +118,7 @@ Die Inhaltsdateien im Stammverzeichnis werden in `data/content.js` übersetzt
 | `ghafir.csv` | Fragmente je Vers mit Übersetzung (und ursprünglichem Emoji) |
 | `ghafir_munasaba.csv` | Munāsaba je Fragment: Aussage und Frage, die das nächste Fragment beantwortet |
 | `ghafir_geschichte.csv` | Stichpunkt und Emoji je Fragment (Munāsaba-Aufgabe) |
+| `ghafir_unterteile.csv` | Unterteile langer Fragmente für die Munāsaba-Aufgabe (Wörter im Vers, Frage, Stichpunkt, Emoji, Übersetzung), damit auch ein Viertel mindestens 5 Teile hat |
 | `ghafir_luecken.csv` | Lückenwörter je Vers: Wort wie im Vers, Übersetzung, drei falsche Wörter mit Übersetzung, Alltagsbezug |
 | `ghafir_fragen.csv` | Fragen je Vers: deutsch, richtige Antwort zuerst, je mit Übersetzung |
 | `ghafir_teile.csv` | Viertel und Hälften jeder Seite (Versbereiche, z. B. `1-3 \| 4 \| 5-6 \| 7`) |
