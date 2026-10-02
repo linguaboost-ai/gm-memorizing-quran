@@ -188,5 +188,5 @@
       </div>`;
   }
 
-  window.Activities = { init, dhikrHtml, quizHtml, textHtml, ring, mmss, DHIKR, QUIZ, TEXTS };
+  window.Activities = { init, dhikrHtml, quizHtml, textHtml, ring, timerBar, mmss, DHIKR, QUIZ, TEXTS };
 })();

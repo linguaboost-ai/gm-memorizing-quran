@@ -1,78 +1,64 @@
 /*
  * German Method – Hifz: Screens, Zustand und Ablauf.
  *
- * Plan (drei Screens): Sure, Lerntage in der Woche, Menge pro Tag (¼–2
- * Seiten). Gelernt wird in Seitenvierteln des Madani-Mushaf.
+ * Startseite: eine Auswahl – Juz, Sure (mit Versanfang und -ende) oder Seite;
+ * jede Zeile ist einzeilig und klappt erst beim Antippen auf. Darunter der
+ * Link zum Testen (immer Sure Ghāfir).
  *
- * Ablauf pro Seitenviertel:
- *   1  Vorbereitung   1a Emojis den Fragmenten zuordnen, 1b Reihenfolge finden,
- *                     1c Munāsaba zwischen die Fragmente setzen (falls vorhanden)
- *   2  Auswendiglernen  im Mushaf oder in der Fragment-Ansicht (mit Emojis,
- *                       Übersetzung, Munāsaba); Ausgrauen in Fünfteln (Weiter/Zurück), dann
- *                       Pause 1 Min (Dhikr) → Wiederholung → Pause 2 Min (Quiz)
- *                       → Wiederholung → Pause 4 Min (Text) → Wiederholung
- *   3  Abschluss       freiwillige Notizen zur Umsetzung
+ * Seitenauswahl: Blättern durch die Seiten des Bereichs; über der Seite
+ * Viertel – Hälfte – ganze Seite. Die Teile werden beim Überfahren markiert,
+ * ein Klick startet sofort das Auswendiglernen.
  *
- * Zum Testen gibt es eine freie Auswahl (Sure → Seite → Bereich, je ein Screen)
- * mit freier Navigation zwischen allen Schritten.
+ * Ablauf pro Teil:
+ *   Auswendiglernen  im Mushaf, Ausgrauen in Fünfteln (Weiter/Zurück) – auch
+ *                    die Anschlusswörter des nächsten Verses
+ *   Pause 1 Min      Lückentext auf der Mushaf-Seite → Wiederholung
+ *   Pause 2 Min      Fragen zum Abschnitt → Wiederholung
+ *   Pause 4 Min      Munāsaba: Fragmente, Stichpunkte, Emojis → Wiederholung
+ *   Abschluss        freiwillige Notizen zur Umsetzung
+ *
+ * Im Testmodus lassen sich alle Schritte frei ansteuern und Timer überspringen.
  */
 (function () {
   "use strict";
 
-  const { Quran, Fade, Mushaf, Player, Reciters, Prep, Activities } = window;
+  const { Quran, Fade, Mushaf, Player, Reciters, Prep, Activities, Exercises } = window;
   const esc = Fade.escapeHtml;
 
-  const STORAGE_KEY = "gm-hifz:v2";
-  const OLD_KEYS = ["gm-hifz:v1"];
+  const STORAGE_KEY = "gm-hifz:v3";
+  const OLD_KEYS = ["gm-hifz:v2", "gm-hifz:v1"];
   const params = new URLSearchParams(location.search);
   // ?timer=5 verkürzt alle Pausen auf 5 Sekunden (zum Ausprobieren)
   const TEST_SECONDS = Math.max(0, Number(params.get("timer")) || 0);
   const PAUSES = [60, 120, 240].map((s) => TEST_SECONDS || s);
-  const TAIL_WORDS = 3;
-
-  const DAILY_OPTIONS = [0.25, 0.5, 1, 1.5, 2];
-  const WEEKDAYS = [
-    { d: 1, short: "Mo", long: "Montag" },
-    { d: 2, short: "Di", long: "Dienstag" },
-    { d: 3, short: "Mi", long: "Mittwoch" },
-    { d: 4, short: "Do", long: "Donnerstag" },
-    { d: 5, short: "Fr", long: "Freitag" },
-    { d: 6, short: "Sa", long: "Samstag" },
-    { d: 0, short: "So", long: "Sonntag" },
-  ];
-  const DAY_SHORT = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
   const DEFAULT_SURAH = 67;
-  const TEST_DEFAULT = { surah: 40, page: 467, part: 0 };
-  const DEFAULT_PREFS = { de: false };
+  const TEST_SURAH = 40;
 
-  const STEPS = ["assign", "order", "link", "learn", "pause1", "review1", "pause2", "review2", "pause3", "review3", "reflect"];
-  // Die Vorbereitung (1a Emojis, 1b Reihenfolge, 1c Munāsaba, Fragment-Ansicht)
-  // ist vorerst aus dem Ablauf genommen; sie kommt später an anderer Stelle wieder.
-  const PREP_ENABLED = false;
-  const PREP_STEPS = ["assign", "order", "link"];
+  const SIZES = [
+    { k: 4, label: "Viertel", short: "Viertel" },
+    { k: 2, label: "Hälfte", short: "Hälfte" },
+    { k: 1, label: "Ganze Seite", short: "Seite" },
+  ];
+  const sizeLabel = (k) => (SIZES.find((x) => x.k === k) || SIZES[0]).short;
+
+  const STEPS = ["learn", "pause1", "review1", "pause2", "review2", "pause3", "review3", "reflect"];
   const STEP_LABEL = {
-    assign: "1a Emojis",
-    order: "1b Reihenfolge",
-    link: "1c Munāsaba",
-    learn: "2 Lernen",
+    learn: "Lernen",
     pause1: "1 Min",
     review1: "Wdh. 1",
     pause2: "2 Min",
     review2: "Wdh. 2",
     pause3: "4 Min",
     review3: "Wdh. 3",
-    reflect: "3 Abschluss",
+    reflect: "Abschluss",
   };
   const STEP_GROUP = {
-    assign: "Vorbereitung",
-    order: "Vorbereitung",
-    link: "Vorbereitung",
     learn: "Auswendiglernen",
-    pause1: "Pause · Dhikr",
+    pause1: "Pause · Lückentext",
     review1: "Wiederholung",
-    pause2: "Pause · Quiz",
+    pause2: "Pause · Fragen",
     review2: "Wiederholung",
-    pause3: "Pause · Lesetext",
+    pause3: "Pause · Munāsaba",
     review3: "Wiederholung",
     reflect: "Abschluss",
   };
@@ -86,26 +72,23 @@
     check: "M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z",
     chevron: "M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z",
     chevronLeft: "M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z",
+    expand: "M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z",
     back: "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z",
     arrow: "M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z",
-    home: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
-    calendar: "M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11zM7 11h5v5H7z",
-    notes: "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z",
-    tune: "M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z",
   };
   const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[name]}"/></svg>`;
 
-
   /* ---------------------------------------------------------------- Zustand */
 
+  const defaultSel = (surah) => ({ mode: "surah", juz: 1, surah, from: 1, to: Quran.meta(surah).ayahs, page: Quran.meta(surah).p0 });
+
   const blankState = () => ({
-    v: 2,
+    v: 3,
     reciter: "afasy",
-    plan: null,
-    progress: null,
-    sessions: { plan: null, test: null },
-    test: Object.assign({}, TEST_DEFAULT),
-    prefs: Object.assign({}, DEFAULT_PREFS),
+    prefs: { de: false },
+    sel: defaultSel(DEFAULT_SURAH),
+    pick: { main: { page: 0, size: 4 }, test: { page: Quran.meta(TEST_SURAH).p0, size: 4 } },
+    sessions: { main: null, test: null },
     journal: [],
   });
 
@@ -113,27 +96,24 @@
     let state = blankState();
     try {
       const s = JSON.parse(localStorage.getItem(STORAGE_KEY));
-      if (s && s.v === 2) state = Object.assign(state, s);
-      // Umstellung: alter Plan wird gelöscht, nur der Rezitator bleibt
+      if (s && s.v === 3) state = Object.assign(state, s);
+      // Umstellung: Rezitator, Einstellungen, Notizen und die Sure des alten Plans bleiben
       for (const k of OLD_KEYS) {
         const old = JSON.parse(localStorage.getItem(k) || "null");
-        if (old && !(s && s.v === 2)) state.reciter = (old.plan && old.plan.reciter) || old.reciter || state.reciter;
+        if (old && !(s && s.v === 3)) {
+          state.reciter = old.reciter || (old.plan && old.plan.reciter) || state.reciter;
+          if (old.prefs) state.prefs = Object.assign(state.prefs, old.prefs);
+          if (Array.isArray(old.journal)) state.journal = old.journal;
+          if (old.plan && old.plan.surah) state.sel = defaultSel(old.plan.surah);
+        }
         localStorage.removeItem(k);
       }
     } catch (e) {
       /* leer oder ungültig */
     }
-    // Pläne nach Juz gibt es nicht mehr: neu einrichten (nach Sure)
-    if (state.plan && !state.plan.surah) {
-      state.plan = null;
-      state.progress = null;
-      state.sessions.plan = null;
-    }
-    if (!state.test || !state.test.surah) {
-      state.test = Object.assign({}, TEST_DEFAULT);
-      state.sessions.test = null;
-    }
-    state.prefs = Object.assign({}, DEFAULT_PREFS, state.prefs);
+    state.prefs = Object.assign({ de: false }, state.prefs);
+    state.pick = Object.assign(blankState().pick, state.pick);
+    state.sessions = Object.assign({ main: null, test: null }, state.sessions);
     return state;
   }
 
@@ -146,133 +126,120 @@
     }
   };
 
-  /* ------------------------------------------------------------ Datum/Format */
-
   const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const today = () => iso(new Date());
-  const parseIso = (s) => {
-    const [y, m, d] = s.split("-").map(Number);
-    return new Date(y, m - 1, d);
-  };
-  const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
-  const dateLabel = (d) => `${DAY_SHORT[d.getDay()]}, ${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.`;
-
-  function pagesLabel(x) {
-    const q = Math.round(x * 4) / 4;
-    const whole = Math.floor(q);
-    const frac = { 0: "", 0.25: "¼", 0.5: "½", 0.75: "¾" }[q - whole];
-    const num = (whole ? String(whole) : "") + frac || "¼";
-    return `${num} ${q > 1 ? "Seiten" : "Seite"}`;
-  }
-  const dailyLabel = (v) => ({ 0.25: "¼", 0.5: "½", 1: "1", 1.5: "1½", 2: "2" })[v];
-  const suraName = (n) => Quran.meta(n).tr;
-  const pagesOf = (m) => (m.p1 !== m.p0 ? `S. ${m.p0}–${m.p1}` : `S. ${m.p0}`);
   const mmss = Activities.mmss;
+  const touchOnly = window.matchMedia && window.matchMedia("(hover: none)").matches;
+
+  /* --------------------------------------------------------------- Bereiche */
+
+  const cmp = (s1, a1, s2, a2) => (s1 - s2) * 1000 + (a1 - a2);
+
+  /**
+   * Bereich zur Auswahl: { key, label, p0, p1, has(vers) }. Im Testmodus immer
+   * Sure Ghāfir. Bei einer Sure stehen die Seiten erst nach dem Laden fest.
+   */
+  function rangeOf(mode, sel) {
+    if (mode === "test") {
+      const m = Quran.meta(TEST_SURAH);
+      return { key: "test", label: m.tr, p0: m.p0, p1: m.p1, has: (v) => v.surah === TEST_SURAH };
+    }
+    if (sel.mode === "juz") {
+      const j = Quran.juzList[sel.juz - 1];
+      return {
+        key: `j${sel.juz}`,
+        label: `Juz ${sel.juz}`,
+        p0: j.p0,
+        p1: j.p1,
+        has: (v) => cmp(v.surah, v.ayah, j.start[0], j.start[1]) >= 0 && cmp(v.surah, v.ayah, j.end[0], j.end[1]) <= 0,
+      };
+    }
+    if (sel.mode === "page") return { key: `p${sel.page}`, label: `Seite ${sel.page}`, p0: sel.page, p1: sel.page, has: null };
+    const m = Quran.meta(sel.surah);
+    const whole = sel.from === 1 && sel.to === m.ayahs;
+    return {
+      key: `s${sel.surah}:${sel.from}-${sel.to}`,
+      label: whole ? m.tr : `${m.tr} ${sel.from}–${sel.to}`,
+      p0: null,
+      p1: null,
+      surah: sel.surah,
+      from: sel.from,
+      to: sel.to,
+      has: (v) => v.surah === sel.surah && v.ayah >= sel.from && v.ayah <= sel.to,
+    };
+  }
+
+  /** Seiten einer Sure-Auswahl ermitteln (Sure laden). */
+  async function resolveRange(r) {
+    if (r.p0 === null) {
+      const d = await Quran.load(r.surah);
+      r.p0 = d.ayahs[r.from - 1].page;
+      r.p1 = d.ayahs[r.to - 1].page;
+    }
+    return r;
+  }
 
   /* --------------------------------------------------------------- Kontext */
 
   const root = document.getElementById("app");
   let screen = { name: "loading" };
-  let planCtx = null; // { days }
-  let unitCache = new Map();
+  const unitCache = new Map();
   let ticker = null;
   let wakeLock = null;
   let audioCtx = null;
-  let draft = null;
+  let laterTimers = [];
 
   const player = new Player(onPlayerChange);
 
-  async function loadPlanContext() {
-    if (!state.plan) {
-      planCtx = null;
-      return;
-    }
-    await Quran.loadSurahPages(state.plan.surah);
-    planCtx = { days: Quran.planDays(state.plan.surah, state.plan.daily) };
-  }
+  const refKey = (ref) => `${ref.mode}|${ref.range}|${ref.page}:${ref.size}:${ref.part}`;
 
-  const refKey = (ref) => `${ref.page}:${ref.part}:${ref.surah || 0}`;
-
-  /** Alles, was für ein Seitenviertel gebraucht wird. */
+  /** Alles, was für einen Teil gebraucht wird. */
   async function unitContext(ref) {
     const key = refKey(ref);
     if (unitCache.has(key)) return unitCache.get(key);
+    const range = rangeOf(ref.mode, ref.sel);
     await Quran.loadPages([ref.page, ref.page + 1]);
-    const list = Quran.surahPageParts(ref.page, ref.surah);
-    const idx = Math.max(0, list.findIndex((u) => u.part === ref.part));
-    const unit = list[idx];
-    const words = Quran.wordsOf(unit);
-    const fragments = Prep.fragmentsOf(unit);
-    // Ausgrauen nach der dargestellten Form (Schreibweise der Ausgabe 1405); Tatweel zählt nicht mit
+    const units = Quran.pageUnits(ref.page, ref.size, range.has);
+    const idx = Math.max(0, Math.min(units.length - 1, ref.part));
+    const unit = units[idx];
+    const tail = Quran.tailOf(unit);
+    // Ausgrauen: Abschnitt und Anschluss, nach der dargestellten Form (Ausgabe 1405); Tatweel zählt nicht mit
+    const words = [...Quran.wordsOf(unit), ...(tail ? tail.words : [])];
     const shapes = words.map((w) => Fade.analyze(w.display));
-    const wordIndex = new Map(words.map((w, i) => [w, i]));
-    const tail = Quran.tailOf(unit, TAIL_WORDS);
+    const fragments = Prep.fragmentsOf(unit);
     const info = {
       ref,
       unit,
-      parts: list.length,
+      parts: units.length,
       partNo: idx + 1,
       words,
       shapes,
-      wordIndex,
+      wordIndex: new Map(words.map((w, i) => [w, i])),
       tail,
-      totals: shapes.map((s) => s.total),
       fragments,
-      mun: Prep.munasabaOf(unit, fragments),
+      study: Exercises.study(unit, fragments),
       label: Quran.label(unit),
     };
     unitCache.set(key, info);
     return info;
   }
 
-  /** Neue Sitzung für ein Seitenviertel. */
-  function newSession(mode, ref, info, extra) {
-    return Object.assign(
-      {
-        mode,
-        ref: { page: ref.page, part: ref.part, surah: ref.surah },
-        step: stepsOf(info)[0],
-        levels: new Array(info.words.length).fill(0),
-        emojis: new Array(info.fragments.length).fill(null),
-        palette: Prep.palette(info.fragments),
-        order: Prep.shuffle(info.fragments.map((f) => f.id)),
-        placed: 0,
-        wheel: 0,
-        linkOrder: info.mun ? Prep.shuffle(info.mun.map((_, i) => i)) : [],
-        linkPlaced: info.mun ? info.mun.map(() => false) : [],
-        // Lernen beginnt in der Fragment-Ansicht, Emojis und Munāsaba zunächst an
-        view: "frag",
-        show: { emoji: true, mun: true },
-        pauses: [{}, {}, {}],
-        acts: [null, null, null],
-        reflect: { d1: "", d7: "", life: "" },
-      },
-      extra || {}
-    );
+  function newSession(ref, info) {
+    return {
+      ref,
+      step: STEPS[0],
+      levels: new Array(info.words.length).fill(0),
+      pauses: [{}, {}, {}],
+      ex: [null, null, null],
+      reflect: { d1: "", d7: "", life: "" },
+    };
   }
 
-  /** Passt die Sitzung zu diesem Abschnitt? (sonst neu beginnen) */
+  /** Passt die gespeicherte Sitzung zu diesem Teil? (sonst neu beginnen) */
   function sessionFits(s, ref, info) {
-    const fits =
-      !!s && s.ref.page === ref.page && s.ref.part === ref.part && (s.ref.surah || 0) === (ref.surah || 0) && s.levels.length === info.words.length && Array.isArray(s.linkPlaced) && s.linkPlaced.length === (info.mun ? info.mun.length : 0);
-    // Schritt, den es (nicht mehr) gibt: beim ersten Schritt weitermachen
-    if (fits && !stepsOf(info).includes(s.step)) s.step = stepsOf(info)[0];
+    const fits = !!s && !!s.ref && refKey(s.ref) === refKey(ref) && s.levels.length === info.words.length && Array.isArray(s.ex);
+    if (fits && !STEPS.includes(s.step)) s.step = STEPS[0];
     return fits;
-  }
-
-  /** Munāsaba erst anzeigen, wenn sie in 1c richtig eingesetzt wurde. */
-  const munReady = (s, info) => !!info.mun && s.linkPlaced.length > 0 && s.linkPlaced.every(Boolean);
-
-  /** Emojis der Fragmente; im Testmodus übersprungene aus der Vorlage. */
-  const emojisOf = (s, info) => info.fragments.map((f, i) => s.emojis[i] || f.emoji || null);
-
-  const viewOf = (s) => (PREP_ENABLED && s.view !== "mushaf" ? "frag" : "mushaf");
-  const showOf = (s) => Object.assign({ emoji: true, mun: true }, s.show);
-
-  /** Schritte dieses Abschnitts: 1c nur, wenn es eine Munāsaba gibt. */
-  function stepsOf(info) {
-    if (!PREP_ENABLED) return STEPS.filter((x) => !PREP_STEPS.includes(x));
-    return info && info.mun ? STEPS : STEPS.filter((x) => x !== "link");
   }
 
   /* ------------------------------------------------------------ Navigation */
@@ -281,6 +248,8 @@
     if (screen.name === "session" && name !== "session") player.stop();
     if (name !== "session") releaseWakeLock();
     stopTicker();
+    clearLater();
+    Exercises.reset();
     screen = Object.assign({ name }, data);
     render();
     window.scrollTo(0, 0);
@@ -292,29 +261,23 @@
     closeSheet();
     const views = {
       loading: () => `<div class="loading-screen">${esc(screen.message || "Lädt …")}</div>`,
-      setup: viewSetup,
-      home: viewHome,
-      testpick: viewTestPick,
+      start: viewStart,
+      pick: viewPick,
       session: viewSession,
       unitDone: viewUnitDone,
-      dayDone: viewDayDone,
-      planDone: viewPlanDone,
     };
     root.innerHTML = `<div class="screen screen-${screen.name}" ${keepScroll ? 'style="animation:none"' : ""}>${views[screen.name]()}</div>`;
-    const after = { setup: afterSetup, home: afterHome, testpick: afterTestPick, session: afterSession };
+    const after = { start: afterStart, pick: afterPick, session: afterSession };
     if (after[screen.name]) after[screen.name]();
     if (screen.name !== "session" || !isPause(currentSession())) document.title = "German Method – Qur'an auswendig lernen";
     if (keepScroll) window.scrollTo(0, y);
   }
 
-  /* ------------------------------------------------------- Screens-Bausteine */
+  /** Abschnittslabel, Frage und Hinweis wie im Design-Kit. */
+  const heading = (label, frage, hinweis) =>
+    `<div class="section-label">${label}</div>${frage ? `<p class="frage">${frage}</p>` : ""}${hinweis ? `<p class="hinweis">${hinweis}</p>` : ""}`;
 
-  /** Fortschritt eines mehrteiligen Ablaufs (ein Schritt pro Screen). */
-  function wizardSteps(labels, current) {
-    const pct = Math.round(((current + 1) / labels.length) * 100);
-    return `<div class="progress run" aria-label="Schritt ${current + 1} von ${labels.length}: ${esc(labels[current])}">
-      <div class="progress-bar"><span style="width:${pct}%"></span></div><span class="progress-score step">${current + 1}/${labels.length}</span></div>`;
-  }
+  /* -------------------------------------------------------------- Startseite */
 
   const fold = (x) =>
     String(x || "")
@@ -326,406 +289,242 @@
       .replace(/([gkstd])h/g, "$1")
       .replace(/(.)\1/g, "$1");
 
-  function suraListHtml(selected, action, query) {
+  function suraListHtml(selected, query) {
     const q = fold(query);
     const list = Quran.surahs.filter((m) => !q || String(m.n) === q || fold(m.tr).includes(q) || fold(m.de).includes(q) || m.ar.includes((query || "").trim()));
     if (!list.length) return `<p class="hint">Keine Sure gefunden.</p>`;
     return list
       .map(
-        (m) => `<button class="sura-row" data-action="${action}" data-value="${m.n}" aria-selected="${m.n === selected}">
+        (m) => `<button class="sura-row" data-action="sel-surah" data-value="${m.n}" aria-selected="${m.n === selected}">
           <span class="num-badge">${m.n}</span>
-          <span class="picker-main"><strong>${esc(m.tr)}</strong><span>${esc(m.de)} · ${m.ayahs} Verse · ${pagesOf(m)}</span></span>
+          <span class="picker-main"><strong>${esc(m.tr)}</strong><span>${esc(m.de)} · ${m.ayahs} Verse</span></span>
           <span class="picker-ar">${esc(m.ar)}</span>
         </button>`
       )
       .join("");
   }
 
-  function suraPickHtml(selected, action, query) {
-    return `<input class="search" type="search" placeholder="Sure suchen – Name oder Nummer" data-field="sura-search" value="${esc(query || "")}" autocomplete="off" />
-      <div class="sura-list" id="sura-list">${suraListHtml(selected, action, query)}</div>`;
+  const surahsOnPage = (p) => Quran.surahs.filter((m) => m.p0 <= p && p <= m.p1);
+  const pageNote = (p) => `Juz ${Quran.juzOfPage(p)} · ${surahsOnPage(p).map((m) => m.tr).join(", ")}`;
+
+  function selValue(mode) {
+    const s = state.sel;
+    if (mode === "juz") {
+      const j = Quran.juzList[s.juz - 1];
+      return `<b>Juz ${s.juz}</b><span>S. ${j.p0}–${j.p1}</span>`;
+    }
+    if (mode === "surah") {
+      const m = Quran.meta(s.surah);
+      return `<b>${m.n}. ${esc(m.tr)}</b><span>Vers ${s.from}–${s.to}</span>`;
+    }
+    return `<b>Seite ${s.page}</b><span>${esc(pageNote(s.page))}</span>`;
   }
 
-  /* ------------------------------------------------------------------ Setup */
-
-  const SETUP_STEPS = ["Sure", "Lerntage", "Menge"];
-
-  function openSetup() {
-    const p = state.plan;
-    draft = {
-      step: 0,
-      query: "",
-      surah: p ? p.surah : DEFAULT_SURAH,
-      weekdays: p ? p.weekdays.slice() : [1, 2, 3, 4, 5],
-      daily: p ? p.daily : 0.5,
-    };
-    go("setup");
-  }
-
-  function viewSetup() {
-    const canClose = !!state.plan;
-    const st = draft.step;
-    const m = Quran.meta(draft.surah);
-    let body;
-    let footer;
-    if (st === 0) {
-      body = `
-        ${canClose ? "" : `<div class="basmala">${esc(Quran.basmala)}</div>`}
-        ${heading("Dein Lernplan · <span class=\"multi\">Sure</span>", "Welche Sure möchtest du auswendig lernen?", "Gelernt wird im Madani-Mushaf, Seite für Seite – immer in ganzen Versen.")}
-        ${suraPickHtml(draft.surah, "setup-sura", draft.query)}`;
-      footer = `<button class="btn" data-action="setup-next">Weiter mit ${esc(m.tr)} ${icon("arrow")}</button>
-        ${canClose ? "" : `<button class="link-btn muted" data-action="test">Zum Testen: freie Auswahl</button>`}`;
-    } else if (st === 1) {
-      body = `
-        ${heading(`${esc(m.tr)} · <span class="multi">Lerntage</span>`, "An welchen Tagen willst du lernen?", "Mehrere Antworten sind möglich.")}
-        <div class="options weekday-list" role="group" aria-label="Lerntage">
-          ${WEEKDAYS.map((w) => {
-            const on = draft.weekdays.includes(w.d);
-            return `<label class="option ${on ? "selected" : ""}">
-              <input type="checkbox" data-action="weekday" data-value="${w.d}" ${on ? "checked" : ""} />
-              <span class="box">${on ? "✓" : ""}</span><span class="option-text">${w.long}</span></label>`;
-          }).join("")}
-        </div>`;
-      footer = `<button class="btn" data-action="setup-next" ${draft.weekdays.length ? "" : "disabled"}>Weiter ${icon("arrow")}</button>`;
-    } else {
-      body = `
-        ${heading(`${esc(m.tr)} · <span class="multi">${WEEKDAYS.filter((w) => draft.weekdays.includes(w.d)).map((w) => w.short).join(", ")}</span>`, "Wie viel pro Tag?", "Menge in Mushaf-Seiten. Gelernt wird in Seitenvierteln.")}
-        <div class="options options-5" role="radiogroup" aria-label="Menge pro Tag">
-          ${DAILY_OPTIONS.map(
-            (v) => `<label class="option ${draft.daily === v ? "selected" : ""}">
-              <input type="radio" name="daily" data-action="daily" data-value="${v}" ${draft.daily === v ? "checked" : ""} />
-              <b>${dailyLabel(v)}</b><span>${v > 1 ? "Seiten" : "Seite"}</span></label>`
-          ).join("")}
+  function selBody(mode) {
+    const s = state.sel;
+    if (mode === "juz") {
+      return `<div class="juz-grid">${Quran.juzList
+        .map((j) => `<button class="juz-chip" data-action="sel-juz" data-value="${j.n}" aria-selected="${s.mode === "juz" && s.juz === j.n}"><b>${j.n}</b><span>S. ${j.p0}</span></button>`)
+        .join("")}</div>`;
+    }
+    if (mode === "surah") {
+      const m = Quran.meta(s.surah);
+      const opts = (sel) => Array.from({ length: m.ayahs }, (_, i) => `<option value="${i + 1}" ${i + 1 === sel ? "selected" : ""}>${i + 1}</option>`).join("");
+      return `
+        <div class="verse-range">
+          <span class="vr-name">${esc(m.tr)}</span>
+          <label>Vers <select data-action="sel-from" aria-label="Versanfang">${opts(s.from)}</select></label>
+          <label>bis <select data-action="sel-to" aria-label="Versende">${opts(s.to)}</select></label>
         </div>
-        <div class="card summary" id="plan-summary">${summaryHtml(null)}</div>`;
-      footer = `<button class="btn" data-action="start-plan">Plan erstellen</button>`;
+        <input class="search" type="search" placeholder="Andere Sure suchen – Name oder Nummer" data-field="sura-search" value="${esc(screen.query || "")}" autocomplete="off" />
+        <div class="sura-list compact" id="sura-list">${suraListHtml(s.surah, screen.query)}</div>`;
     }
     return `
-      <header class="topbar kit">
-        ${st > 0 ? `<button class="icon-btn" data-action="setup-back" aria-label="Zurück">${icon("back")}</button>` : canClose ? `<button class="icon-btn" data-action="home" aria-label="Schließen">${icon("close")}</button>` : `<span class="topbar-side"></span>`}
-        <span class="topbar-title">${canClose ? "Neuer Lernplan" : "Dein Lernplan"}</span>
-        <span class="topbar-side"></span>
-      </header>
-      ${wizardSteps(SETUP_STEPS, st)}
-      <main class="content">${body}</main>
-      <footer class="footer">${footer}</footer>`;
+      <div class="page-stepper">
+        <button class="icon-btn" data-action="sel-page-step" data-value="-1" aria-label="Seite zurück">${icon("chevronLeft")}</button>
+        <input class="num page-input" type="number" inputmode="numeric" min="1" max="604" value="${s.page}" data-field="sel-page" aria-label="Seite" />
+        <button class="icon-btn" data-action="sel-page-step" data-value="1" aria-label="Seite vor">${icon("chevron")}</button>
+      </div>
+      <input class="page-range" type="range" min="1" max="604" value="${s.page}" data-field="sel-page" aria-label="Seite wählen" />
+      <p class="hint" id="page-note">${esc(pageNote(s.page))}</p>`;
   }
 
-  function scheduleDates(count, weekdays, from) {
-    const out = [];
-    let d = from;
-    for (let guard = 0; out.length < count && guard < 5000; guard++) {
-      if (weekdays.includes(d.getDay())) out.push(d);
-      d = addDays(d, 1);
-    }
-    return out;
-  }
-
-  function summaryHtml(days) {
-    if (!days) return `<span class="label">Dein Plan</span><div class="summary-row">Wird berechnet …</div>`;
-    const dates = scheduleDates(days.length, draft.weekdays, new Date());
-    const units = days.reduce((s, d) => s + d.units.length, 0);
-    const last = dates[dates.length - 1];
-    return `
-      <span class="label">So sieht dein Plan aus</span>
-      <div class="summary-row"><b>${days.length}</b> ${days.length === 1 ? "Lerntag" : "Lerntage"} · je ca. ${pagesLabel(draft.daily)}</div>
-      <small>${units} Seitenviertel · voraussichtlich fertig: ${dateLabel(last)}${last.getFullYear() !== new Date().getFullYear() ? last.getFullYear() : ""}<br>
-      Jedes Viertel: Auswendiglernen im Mushaf mit Pausen von 1, 2 und 4 Minuten, Abschluss.</small>`;
-  }
-
-  async function afterSetup() {
-    if (draft.step !== 2) return;
-    const token = (afterSetup.token = (afterSetup.token || 0) + 1);
-    await Quran.loadSurahPages(draft.surah);
-    if (token !== afterSetup.token || screen.name !== "setup") return;
-    const el = document.getElementById("plan-summary");
-    if (el) el.innerHTML = summaryHtml(Quran.planDays(draft.surah, draft.daily));
-  }
-
-  async function startPlan(confirmed) {
-    const hasProgress = state.plan && state.progress && (state.progress.day > 0 || state.progress.unit > 0 || state.sessions.plan);
-    if (hasProgress && !confirmed) {
-      return confirmDialog("Neuen Plan erstellen?", "Dein bisheriger Fortschritt im Plan wird dabei zurückgesetzt.", "Neuen Plan erstellen", () => startPlan(true));
-    }
-    state.plan = { surah: draft.surah, weekdays: draft.weekdays.slice(), daily: draft.daily, created: today() };
-    state.progress = { day: 0, unit: 0, completed: [], lastDoneDate: null };
-    state.sessions.plan = null;
-    save();
-    go("loading");
-    await loadPlanContext();
-    go("home");
-  }
-
-  /* ------------------------------------------------------------------- Home */
-
-  const TABS = [
-    ["today", "Heute", "home"],
-    ["plan", "Plan", "calendar"],
-    ["notes", "Notizen", "notes"],
-    ["more", "Einstellungen", "tune"],
-  ];
-
-  /** Termine: erledigte Tage mit Datum, offene ab heute auf den Lerntagen. */
-  function planSchedule() {
-    const p = state.progress;
-    const days = planCtx.days;
-    const doneToday = p.lastDoneDate === today() && !state.sessions.plan;
-    const upcoming = scheduleDates(Math.max(0, days.length - p.day), state.plan.weekdays, doneToday ? addDays(new Date(), 1) : new Date());
-    return days.map((d, i) => (i < p.day ? { done: true, date: p.completed[i] ? parseIso(p.completed[i]) : null } : { done: false, date: upcoming[i - p.day] }));
-  }
-
-  function viewHome() {
-    const tab = screen.tab || "today";
-    const p = state.progress;
-    const total = planCtx.days.length;
-    const finished = p.day >= total;
-    const pct = Math.round((Math.min(p.day, total) / total) * 100);
-    const m = Quran.meta(state.plan.surah);
-    const sched = planSchedule();
-    let body = "";
-    if (tab === "today") {
-      body = `
-        <div class="card hello">
-          <div class="hello-main"><span>Assalamu 'Alaikum</span><strong>Dein Hifz-Plan</strong></div>
-          <span class="chip">${finished ? "Fertig" : `Tag ${p.day + 1} / ${total}`}</span>
-        </div>
-        <div class="basmala">${esc(Quran.basmala)}</div>
-        <h1 class="hero-title">${finished ? `${esc(m.tr)} ist geschafft.` : `Lerne ${esc(m.tr)} auswendig.`}</h1>
-        ${todayCardHtml(finished, sched)}
-        <button class="card progress-card" data-action="tab" data-value="plan">
-          <span class="progress-head"><strong>Dein Weg</strong><small>${pct} % · ${Math.min(p.day, total)} von ${total} Lerntagen</small></span>
-          <span class="progress" aria-hidden="true"><i style="width:${pct}%"></i></span>
-        </button>`;
-    } else if (tab === "plan") {
-      body = `
-        <h1 class="h1">Dein Weg</h1>
-        <p class="lead">${esc(m.tr)} · ${pagesLabel(state.plan.daily)} pro Tag · ${total} Lerntage</p>
-        <div class="card">
-          <div class="progress" aria-label="Fortschritt"><i style="width:${pct}%"></i></div>
-          <div class="days" style="margin-top:6px">${daysHtml(sched)}</div>
-        </div>`;
-    } else if (tab === "notes") {
-      body = `<h1 class="h1">Deine Notizen</h1>${journalHtml()}`;
-    } else {
-      const reciter = Reciters.byId(state.reciter);
-      const names = WEEKDAYS.filter((w) => state.plan.weekdays.includes(w.d)).map((w) => w.short).join(", ");
-      body = `
-        <h1 class="h1">Einstellungen</h1>
-        <div class="card">
-          <div class="settings-row"><div><small>Sure</small><strong>${m.n}. ${esc(m.tr)} · ${pagesOf(m)}</strong></div></div>
-          <div class="settings-row"><div><small>Lerntage</small><strong>${names}</strong></div></div>
-          <div class="settings-row"><div><small>Pro Tag</small><strong>${pagesLabel(state.plan.daily)}</strong></div></div>
-          <div class="settings-row"><div><small>Rezitator</small><strong>${esc(reciter.name)}</strong></div><button class="link-btn" data-action="change-reciter">Ändern</button></div>
-          <div style="padding-top:12px"><button class="btn secondary" data-action="new-plan">Neuen Plan erstellen</button></div>
-        </div>
-        <div class="section-title"><h2>Zum Testen</h2></div>
-        <button class="card picker" data-action="test">
-          <span class="num-badge">${icon("arrow")}</span>
-          <span class="picker-main"><strong>Freie Auswahl</strong><span>Sure, Seite und Bereich direkt wählen – unabhängig vom Plan</span></span>
-          <svg class="chevron" viewBox="0 0 24 24"><path d="${ICONS.chevron}"/></svg>
-        </button>
-        <p class="credits">Text &amp; Seitenlayout: King Fahd Complex (KFGQPC Uthmanic Hafs) via <a href="https://quran.ws" target="_blank" rel="noopener">quran.ws</a> (CC BY 4.0) · Audio: <a href="https://everyayah.com" target="_blank" rel="noopener">everyayah.com</a></p>`;
-    }
-    return `
-      <main class="content with-tabbar" style="padding-top:max(20px, env(safe-area-inset-top))">${body}</main>
-      <nav class="tabbar" aria-label="Bereiche">${TABS.map(
-        ([id, label, ic]) => `<button data-action="tab" data-value="${id}" ${id === tab ? 'aria-current="page"' : ""}>${icon(ic)}<span>${label}</span></button>`
-      ).join("")}</nav>`;
-  }
-
-  function todayCardHtml(finished, sched) {
-    if (finished) {
-      return `<div class="card today-card">
-        <span class="label">Ma schā' Allāh</span>
-        <h2 class="today-title">Alle ${planCtx.days.length} Lerntage geschafft</h2>
-        <p class="today-meta left">Wiederhole die Sure regelmäßig, damit sie bleibt.</p>
-        <button class="btn" data-action="new-plan">Neuen Plan erstellen</button>
-      </div>`;
-    }
-    const p = state.progress;
-    const s = state.sessions.plan;
-    const day = planCtx.days[p.day];
-    const date = sched[p.day].date;
-    const isToday = date && iso(date) === today();
-    const units = day.units.map((u, i) => `<li class="${i < p.unit ? "done" : i === p.unit ? "now" : ""}">${esc(Quran.label(u))} <small>S. ${u.page}</small></li>`).join("");
-    const doneToday = p.lastDoneDate === today() && !s && p.unit === 0;
-    let head;
-    let button;
-    if (s || p.unit > 0) {
-      head = `Tag ${p.day + 1} · weiterlernen`;
-      button = `<button class="btn" data-action="learn">Weiterlernen</button>`;
-    } else if (isToday) {
-      head = `Heute · ${dateLabel(date)}`;
-      button = `<button class="btn" data-action="learn">Jetzt lernen</button>`;
-    } else {
-      head = doneToday ? "Für heute geschafft ✓" : `Nächster Lerntag: ${date ? dateLabel(date) : "–"}`;
-      button = `<button class="btn" data-action="learn">Tag ${p.day + 1} jetzt schon lernen</button>`;
-    }
-    return `<div class="card today-card">
-      <div class="today-head"><span class="label">Tagespensum · Tag ${p.day + 1}</span><span class="chip">${pagesLabel(day.size)}</span></div>
-      <h2 class="today-title">${head}</h2>
-      <ol class="unit-list">${units}</ol>
-      ${button}
+  function selRow(mode, label) {
+    const open = screen.open === mode;
+    const active = state.sel.mode === mode;
+    return `<div class="sel-row ${active ? "active" : ""} ${open ? "open" : ""}">
+      <button class="sel-head" data-action="sel-open" data-value="${mode}" aria-expanded="${open}">
+        <span class="sel-dot" aria-hidden="true"></span>
+        <span class="sel-label">${label}</span>
+        <span class="sel-value" id="sel-value-${mode}">${selValue(mode)}</span>
+        <span class="sel-chev">${icon("expand")}</span>
+      </button>
+      ${open ? `<div class="sel-body">${selBody(mode)}</div>` : ""}
     </div>`;
   }
 
-  function daysHtml(sched) {
-    const p = state.progress;
-    return planCtx.days
-      .map((d) => {
-        const i = d.index;
-        const done = i < p.day;
-        const current = i === p.day;
-        const first = d.units[0];
-        const last = d.units[d.units.length - 1];
-        const date = sched[i].date;
-        return `<div class="day ${done ? "done" : current ? "current" : ""}">
-          <span class="day-dot">${done ? icon("check") : i + 1}</span>
-          <span class="day-main"><strong>${date ? dateLabel(date) : `Tag ${i + 1}`} · ${esc(Quran.label({ verses: [first.verses[0], last.verses[last.verses.length - 1]] }))}</strong>
-          <span>${pagesLabel(d.size)} · ${d.units.length} Viertel · S. ${first.page}${last.page !== first.page ? "–" + last.page : ""}</span></span>
-          ${current ? `<span class="chip now">Als Nächstes</span>` : ""}
-        </div>`;
-      })
-      .join("");
-  }
-
-  function journalHtml() {
-    const items = (state.journal || []).slice().reverse();
-    if (!items.length) return `<div class="card empty-note"><p>Noch keine Notizen. Nach jedem Abschnitt kannst du festhalten, was du gelernt hast und umsetzen willst.</p></div>`;
-    return `<div class="card journal">${items
-      .map((e) => {
-        const lines = [
-          e.dhikrCount ? `Dhikr: ${esc(e.dhikrCount)} Mal` : "",
-          e.learned ? `Neu gelernt: ${esc(e.learned)}` : "",
-          e.takeaway ? `Aus der Geschichte: ${esc(e.takeaway)}` : "",
-          e.d1 ? `24 Stunden: ${esc(e.d1)}` : "",
-          e.d7 ? `7 Tage: ${esc(e.d7)}` : "",
-          e.life ? `Im Leben: ${esc(e.life)}` : "",
-        ].filter(Boolean);
-        return `<div class="journal-item"><strong>${esc(e.label)}</strong><small>${dateLabel(parseIso(e.date))}</small>${lines.map((l) => `<p>${l}</p>`).join("") || "<p>–</p>"}</div>`;
-      })
-      .join("")}</div>`;
-  }
-
-  function afterHome() {}
-
-  /* ------------------------------------------------------------- Testmodus */
-
-  const TEST_STEPS = ["sura", "page", "area"];
-
-  function viewTestPick() {
-    const t = state.test;
-    const step = screen.step || "sura";
-    const k = TEST_STEPS.indexOf(step);
-    const m = Quran.meta(t.surah);
-    let body = "";
-    let footer = "";
-    if (step === "sura") {
-      body = `
-        ${heading("Freie Auswahl · <span class=\"multi\">Sure</span>", "Welche Sure?", "Zum Testen – unabhängig vom Plan. Alle Schritte lassen sich frei ansteuern, Timer kannst du überspringen.")}
-        ${suraPickHtml(t.surah, "test-sura", screen.query)}`;
-      footer = `<button class="btn" data-action="test-goto" data-value="page">Weiter mit ${esc(m.tr)} ${icon("arrow")}</button>`;
-    } else if (step === "page") {
-      body = `
-        ${heading(`${m.n}. ${esc(m.tr)} · <span class="multi">Seite</span>`, "Welche Seite?", `${m.p1 > m.p0 ? `${m.p1 - m.p0 + 1} Seiten im Madani-Mushaf` : "Die Sure steht auf einer Seite"}.`)}
-        <div class="page-grid" id="page-grid"><div class="loading-screen">Lädt …</div></div>`;
-    } else {
-      const reciter = Reciters.byId(state.reciter);
-      body = `
-        ${heading(`${m.n}. ${esc(m.tr)} · <span class="multi">Seite ${t.page}</span>`, "Welcher Bereich?", "Die Seite ist in Viertel aus ganzen Versen geteilt. Tippe auf ein Viertel.")}
-        <div class="mini-wrap">
-          <div class="mushaf mini" id="mini-page"><div class="loading-screen">Lädt …</div></div>
-          <div class="part-list" id="part-list"></div>
+  function viewStart() {
+    const s = state.sessions.main;
+    const reciter = Reciters.byId(state.reciter);
+    const resume = s && s.ref ? unitCache.get(refKey(s.ref)) : null;
+    return `
+      <header class="topbar kit"><span class="topbar-side"></span><span class="topbar-title">Auswendiglernen</span><span class="topbar-side"></span></header>
+      <main class="content">
+        <div class="basmala">${esc(Quran.basmala)}</div>
+        ${heading("Deine Auswahl", "Was möchtest du auswendig lernen?", "Wähle eine Juz, eine Sure (mit Versen) oder eine Seite.")}
+        ${
+          s && s.ref
+            ? `<button class="card resume-card" data-action="resume">
+                <span class="label">Weiterlernen</span>
+                <strong>${esc(resume ? resume.label : `Seite ${s.ref.page}`)} · ${sizeLabel(s.ref.size)}</strong>
+                <span>${STEP_GROUP[s.step]} · Seite ${s.ref.page}</span>
+              </button>`
+            : ""
+        }
+        <div class="sel-card" role="radiogroup" aria-label="Auswahl">
+          ${selRow("juz", "Juz")}
+          ${selRow("surah", "Sure")}
+          ${selRow("page", "Seite")}
         </div>
-        <div class="settings-row card" style="padding:12px 16px"><div><small>Rezitator</small><strong>${esc(reciter.name)}</strong></div><button class="link-btn" data-action="change-reciter">Ändern</button></div>`;
-      footer = `<button class="btn" data-action="test-start">Auswendiglernen starten</button>`;
+        <div class="settings-row card"><div><small>Rezitator</small><strong>${esc(reciter.name)}</strong></div><button class="link-btn" data-action="change-reciter">Ändern</button></div>
+      </main>
+      <footer class="footer">
+        <button class="btn" data-action="start-range">Weiter zur Seite ${icon("arrow")}</button>
+        <button class="link-btn test-link" data-action="test">Testen: Sure Ghāfir</button>
+      </footer>`;
+  }
+
+  function afterStart() {
+    const sel = document.querySelector('.sura-row[aria-selected="true"]');
+    if (sel && screen.open === "surah") sel.scrollIntoView({ block: "nearest" });
+  }
+
+  /** Nur die Zeilenwerte aktualisieren (ohne die Seite neu zu zeichnen). */
+  function refreshSel() {
+    for (const m of ["juz", "surah", "page"]) {
+      const el = document.getElementById("sel-value-" + m);
+      if (el) el.innerHTML = selValue(m);
     }
+    document.querySelectorAll(".sel-row").forEach((r, i) => r.classList.toggle("active", ["juz", "surah", "page"][i] === state.sel.mode));
+  }
+
+  function setPage(p) {
+    p = Math.max(1, Math.min(604, Math.round(p) || 1));
+    state.sel.page = p;
+    state.sel.mode = "page";
+    save();
+    document.querySelectorAll('[data-field="sel-page"]').forEach((el) => {
+      if (+el.value !== p && document.activeElement !== el) el.value = p;
+    });
+    const note = document.getElementById("page-note");
+    if (note) note.textContent = pageNote(p);
+    refreshSel();
+  }
+
+  /* ---------------------------------------------------------- Seitenauswahl */
+
+  async function openPick(mode, page) {
+    const range = await resolveRange(rangeOf(mode, state.sel));
+    const pk = state.pick[mode];
+    if (mode === "main" && pk.range !== range.key) pk.page = 0;
+    pk.range = range.key;
+    if (page) pk.page = page;
+    if (!pk.page || pk.page < range.p0 || pk.page > range.p1) pk.page = range.p0;
+    save();
+    go("pick", { mode, range });
+  }
+
+  function viewPick() {
+    const { mode, range } = screen;
+    const pk = state.pick[mode];
+    const count = range.p1 - range.p0 + 1;
     return `
       <header class="topbar kit">
-        ${
-          k > 0
-            ? `<button class="icon-btn" data-action="test-goto" data-value="${TEST_STEPS[k - 1]}" aria-label="Zurück">${icon("back")}</button>`
-            : `<button class="icon-btn" data-action="${state.plan ? "home" : "setup"}" aria-label="Schließen">${icon("close")}</button>`
-        }
-        <span class="topbar-title">Freie Auswahl</span>
+        <button class="icon-btn" data-action="start" aria-label="Zur Auswahl">${icon("back")}</button>
+        <span class="topbar-title">${mode === "test" ? `Testen · ${esc(range.label)}` : esc(range.label)}</span>
         <span class="topbar-side"></span>
       </header>
-      ${wizardSteps(["Sure", "Seite", "Bereich"], k)}
-      <main class="content">${body}</main>
-      ${footer ? `<footer class="footer">${footer}</footer>` : ""}`;
+      <main class="content pick">
+        <div class="pick-bar">
+          <div class="seg size-switch" role="group" aria-label="Größe">${SIZES.map(
+            (x) => `<button class="seg-btn ${pk.size === x.k ? "on" : ""}" data-action="pick-size" data-value="${x.k}" aria-pressed="${pk.size === x.k}">${x.label}</button>`
+          ).join("")}</div>
+          <div class="page-nav">
+            <button class="icon-btn" data-action="pick-page" data-value="-1" aria-label="Vorherige Seite" ${pk.page > range.p0 ? "" : "disabled"}>${icon("chevronLeft")}</button>
+            <span class="page-nav-label"><b>Seite ${pk.page}</b>${count > 1 ? `<small>${pk.page - range.p0 + 1} / ${count}</small>` : ""}</span>
+            <button class="icon-btn" data-action="pick-page" data-value="1" aria-label="Nächste Seite" ${pk.page < range.p1 ? "" : "disabled"}>${icon("chevron")}</button>
+          </div>
+        </div>
+        <p class="hinweis pick-hint">${touchOnly ? "Tippe auf einen Teil – dann geht es direkt los." : "Fahre mit der Maus über die Seite und klicke den Teil an, den du lernen willst."}</p>
+        <div class="mushaf full pick" id="pick-page"><div class="loading-screen">Lädt …</div></div>
+      </main>`;
   }
 
-  async function afterTestPick() {
-    const t = state.test;
-    const step = screen.step || "sura";
-    if (step === "sura") return;
-    if (step === "page") {
-      await Quran.loadSurahPages(t.surah);
-      if (screen.name !== "testpick" || screen.step !== "page") return;
-      const m = Quran.meta(t.surah);
-      const chips = [];
-      for (let p = m.p0; p <= m.p1; p++) {
-        const vs = Quran.versesStartingOn(p).filter((v) => v.surah === t.surah);
-        const range = vs.length ? (vs.length > 1 ? `Vers ${vs[0].ayah}–${vs[vs.length - 1].ayah}` : `Vers ${vs[0].ayah}`) : "Fortsetzung";
-        chips.push(`<button class="page-chip" data-action="test-page" data-value="${p}" aria-selected="${p === t.page}"><b>${p}</b><span>${range}</span></button>`);
-      }
-      document.getElementById("page-grid").innerHTML = chips.join("");
-      const sel = document.querySelector('.page-chip[aria-selected="true"]');
-      if (sel) sel.scrollIntoView({ block: "nearest" });
-      return;
-    }
-    await Quran.loadPages([t.page, t.page + 1]);
-    if (screen.name !== "testpick" || screen.step !== "area") return;
-    const parts = Quran.surahPageParts(t.page, t.surah);
-    let idx = parts.findIndex((u) => u.part === t.part);
-    if (idx < 0) {
-      idx = 0;
-      t.part = parts.length ? parts[0].part : 0;
-      save();
-    }
-    const mini = document.getElementById("mini-page");
-    mini.innerHTML = Mushaf.pageHtml(t.page, parts);
-    mini.dataset.selected = idx;
-    Mushaf.fit(mini);
-    document.getElementById("part-list").innerHTML = parts
-      .map(
-        (u, i) => `<button class="part-row" data-action="test-part" data-value="${i}" data-q="${i}" aria-selected="${i === idx}">
-          <span class="part-dot q${i}"></span><span><strong>Viertel ${u.part + 1}</strong><small>${esc(Quran.label(u))}</small></span></button>`
-      )
-      .join("");
-    // Hover: Viertel hervorheben
-    const wrap = document.querySelector(".mini-wrap");
-    wrap.addEventListener("mouseover", (e) => {
-      const el = e.target.closest("[data-q]");
-      mini.dataset.hover = el ? el.dataset.q : "";
+  async function afterPick() {
+    const { mode, range } = screen;
+    const pk = state.pick[mode];
+    const page = pk.page;
+    await Quran.loadPages([page, page + 1]);
+    if (screen.name !== "pick" || state.pick[mode].page !== page) return;
+    const units = Quran.pageUnits(page, pk.size, range.has);
+    const box = document.getElementById("pick-page");
+    if (!box) return;
+    box.innerHTML = Mushaf.pageHtml(page, units);
+    Mushaf.fit(box);
+    let cur = null;
+    const mark = (q) => {
+      if (q === cur) return;
+      cur = q;
+      box.querySelectorAll(".t.hl").forEach((x) => x.classList.remove("hl"));
+      if (q !== null) box.querySelectorAll(`.t[data-q="${q}"]`).forEach((x) => x.classList.add("hl"));
+    };
+    box.addEventListener("mouseover", (e) => {
+      const el = e.target.closest(".t");
+      if (el) mark(el.dataset.q === undefined ? null : el.dataset.q);
     });
-    wrap.addEventListener("mouseleave", () => (mini.dataset.hover = ""));
-    mini.addEventListener("click", (e) => {
+    box.addEventListener("mouseleave", () => mark(null));
+    box.addEventListener("click", (e) => {
       const el = e.target.closest("[data-q]");
-      if (el) selectTestPart(+el.dataset.q);
+      if (!el) return;
+      mark(el.dataset.q);
+      startUnit(mode, page, pk.size, +el.dataset.q);
     });
   }
 
-  function selectTestPart(i) {
-    const parts = Quran.surahPageParts(state.test.page, state.test.surah);
-    if (!parts[i]) return;
-    state.test.part = parts[i].part;
+  function pickPage(mode, delta) {
+    const range = screen.range;
+    const pk = state.pick[mode];
+    const p = Math.max(range.p0, Math.min(range.p1, pk.page + delta));
+    if (p === pk.page) return;
+    pk.page = p;
     save();
-    const mini = document.getElementById("mini-page");
-    if (mini) mini.dataset.selected = i;
-    document.querySelectorAll(".part-row").forEach((r) => r.setAttribute("aria-selected", String(+r.dataset.value === i)));
+    render();
   }
 
-  async function startTest(fresh) {
-    const ref = { page: state.test.page, part: state.test.part, surah: state.test.surah };
+  /** Teil starten (eine begonnene Sitzung desselben Teils geht weiter). */
+  async function startUnit(mode, page, size, part, fresh) {
+    const sel = mode === "main" ? Object.assign({}, state.sel) : null;
+    const range = rangeOf(mode, sel || state.sel);
+    const ref = { mode, range: range.key, sel, page, size, part };
     const info = await unitContext(ref);
-    ref.part = info.unit.part;
-    // gleiche Auswahl: begonnene Sitzung fortsetzen
-    if (fresh || !sessionFits(state.sessions.test, ref, info)) {
-      state.sessions.test = newSession("test", ref, info);
-      save();
+    if (fresh || !sessionFits(state.sessions[mode], ref, info)) {
+      state.sessions[mode] = newSession(ref, info);
     }
-    go("session", { mode: "test" });
+    state.pick[mode] = Object.assign(state.pick[mode], { page, size, range: range.key });
+    save();
+    go("session", { mode });
+  }
+
+  async function resumeSession(mode) {
+    const s = state.sessions[mode];
+    if (!s || !s.ref) return;
+    const info = await unitContext(s.ref);
+    if (!sessionFits(s, s.ref, info)) {
+      state.sessions[mode] = null;
+      save();
+      return render();
+    }
+    go("session", { mode });
   }
 
   /* --------------------------------------------------------------- Sitzung */
@@ -734,51 +533,34 @@
   const isPause = (s) => !!s && /^pause/.test(s.step);
   const pauseIndex = (s) => +s.step.slice(-1) - 1;
 
-  async function openPlanSession() {
-    const p = state.progress;
-    if (!planCtx || p.day >= planCtx.days.length) return;
-    const unit = planCtx.days[p.day].units[p.unit];
-    const ref = { page: unit.page, part: unit.part, surah: state.plan.surah };
-    const info = await unitContext(ref);
-    let s = state.sessions.plan;
-    if (!sessionFits(s, ref, info)) {
-      s = state.sessions.plan = newSession("plan", ref, info, { day: p.day, unit: p.unit });
-      save();
-    }
-    go("session", { mode: "plan" });
-  }
-
   function sessionInfo() {
     const s = currentSession();
     return s && unitCache.get(refKey(s.ref));
   }
 
   function sessionTitle(s, info) {
-    if (s.mode === "test") return `Test · ${info.label}`;
-    return `Tag ${s.day + 1} · ${info.label}`;
+    return `${s.ref.mode === "test" ? "Test · " : ""}${info.label}`;
   }
 
-  /** Fortschritt wie im Design-Kit: Balken über alle Schritte des Abschnitts. */
+  /** Fortschritt wie im Design-Kit: Balken über alle Schritte des Teils. */
   function progressHtml(s, info) {
-    const steps = stepsOf(info);
-    const idx = steps.indexOf(s.step);
-    const pct = Math.round(((idx + 1) / steps.length) * 100);
-    const where = s.mode === "test" ? `Viertel ${info.partNo}/${info.parts}` : `Viertel ${s.unit + 1}/${planCtx.days[s.day].units.length}`;
-    return `<div class="progress run"><div class="progress-bar"><span style="width:${pct}%"></span></div><span class="progress-score">${where}</span></div>`;
+    const idx = STEPS.indexOf(s.step);
+    const pct = Math.round(((idx + 1) / STEPS.length) * 100);
+    const where = info.parts > 1 ? `${sizeLabel(s.ref.size)} ${info.partNo}/${info.parts}` : sizeLabel(s.ref.size);
+    return `<div class="progress run"><div class="progress-bar"><span style="width:${pct}%"></span></div><span class="progress-score">${where} · S. ${s.ref.page}</span></div>`;
   }
 
   /** Kopfzeile: Schließen, Titel, Schritt. Im Testmodus mit Pfeilen und Schrittliste. */
   function sessionTopbar(s, info) {
-    const steps = stepsOf(info);
-    const idx = steps.indexOf(s.step);
+    const idx = STEPS.indexOf(s.step);
     const side =
-      s.mode === "test"
+      s.ref.mode === "test"
         ? `<span class="topbar-side nav">
             <button class="step-btn" data-action="step-jump" data-value="-1" aria-label="Vorheriger Schritt" ${idx > 0 ? "" : "disabled"}>${icon("chevronLeft")}</button>
-            <button class="count-btn" data-action="step-sheet" aria-label="Schritt wählen">${idx + 1}/${steps.length}</button>
-            <button class="step-btn" data-action="step-jump" data-value="1" aria-label="Nächster Schritt" ${idx < steps.length - 1 ? "" : "disabled"}>${icon("chevron")}</button>
+            <button class="count-btn" data-action="step-sheet" aria-label="Schritt wählen">${idx + 1}/${STEPS.length}</button>
+            <button class="step-btn" data-action="step-jump" data-value="1" aria-label="Nächster Schritt" ${idx < STEPS.length - 1 ? "" : "disabled"}>${icon("chevron")}</button>
           </span>`
-        : `<span class="topbar-side count">${idx + 1}/${steps.length}</span>`;
+        : `<span class="topbar-side count">${idx + 1}/${STEPS.length}</span>`;
     return `<header class="topbar kit">
         <button class="icon-btn" data-action="close-session" aria-label="Schließen">${icon("close")}</button>
         <span class="topbar-title">${esc(sessionTitle(s, info))}</span>
@@ -786,75 +568,72 @@
       </header>`;
   }
 
-  function openStepSheet(s, info) {
-    const steps = stepsOf(info);
+  function openStepSheet(s) {
+    const cur = STEPS.indexOf(s.step);
     openSheet(
       `<div class="sheet" role="dialog" aria-label="Schritt wählen">
         <div class="sheet-head"><div class="sheet-head-row"><h3>Schritt wählen</h3><button class="icon-btn" data-action="close-sheet" aria-label="Schließen">${icon("close")}</button></div></div>
-        <div class="sheet-list">${steps
-          .map(
-            (st, i) => `<button class="lesson-card ${st === s.step ? "current" : ""}" data-action="goto-step" data-value="${st}">
-              <span class="dot ${i < steps.indexOf(s.step) ? "done" : "open"}">${i < steps.indexOf(s.step) ? icon("check") : ""}</span>
+        <div class="sheet-list">${STEPS.map(
+          (st, i) => `<button class="lesson-card ${st === s.step ? "current" : ""}" data-action="goto-step" data-value="${st}">
+              <span class="dot ${i < cur ? "done" : "open"}">${i < cur ? icon("check") : ""}</span>
               <span class="lesson-card-text"><span class="lesson-card-title">${STEP_LABEL[st]}</span><span class="lesson-card-sub">${STEP_GROUP[st]}</span></span>
             </button>`
-          )
-          .join("")}</div>
+        ).join("")}</div>
       </div>`
     );
   }
 
-  /** Abschnittslabel, Frage und Hinweis wie im Design-Kit. */
-  const heading = (label, frage, hinweis) =>
-    `<div class="section-label">${label}</div>${frage ? `<p class="frage">${frage}</p>` : ""}${hinweis ? `<p class="hinweis">${hinweis}</p>` : ""}`;
+  /** Übung der aktuellen Pause (wird bei Bedarf neu angelegt). */
+  function exerciseOf(s, info) {
+    const k = pauseIndex(s);
+    if (!Exercises.valid(s.ex[k], k, info)) {
+      s.ex[k] = Exercises.init(k, info);
+      save();
+    }
+    return s.ex[k];
+  }
 
   function viewSession() {
     const s = currentSession();
     const info = sessionInfo();
     if (!s || !info) return `<div class="loading-screen">Lädt …</div>`;
     let body = "";
+    let footer = null;
     let showPlayer = false;
-    switch (s.step) {
-      case "assign":
-        body = `${heading("Vorbereitung · <span class=\"multi\">1a Emojis zuordnen</span>", "Welches Emoji passt zu welchem Fragment?", "Der Abschnitt in Fragmenten. Jedes Emoji ist eine Merkhilfe für sein Fragment.")}
-          <div id="prep"></div>`;
-        break;
-      case "link":
-        body = `${heading("Vorbereitung · <span class=\"multi\">1c Munāsaba</span>", "Wo gehört welcher Zusammenhang hin?", "Jeder Teil ist eine Aussage mit einer Frage, die das Fragment direkt danach beantwortet – auch vor dem ersten und nach dem letzten Fragment.")}
-          <div id="prep"></div>`;
-        break;
-      case "order":
-        body = `${heading("Vorbereitung · <span class=\"multi\">1b Reihenfolge</span>", "In welcher Reihenfolge kommen die Fragmente?", "Die Emojis bleiben, die Fragmente sind gemischt. Setze sie der Reihe nach wieder ein.")}
-          <div id="prep"></div>`;
-        break;
-      case "learn":
-      case "review1":
-      case "review2":
-      case "review3":
-        body = learnBodyHtml(s, info);
-        showPlayer = true;
-        break;
-      case "pause1":
-      case "pause2":
-      case "pause3":
-        body = pauseBodyHtml(s);
-        break;
-      case "reflect":
-        body = reflectHtml(s);
-        break;
-      default:
-    }
-    return `
-      ${sessionTopbar(s, info)}
-      ${progressHtml(s, info)}
-      <main class="content">${body}</main>
-      <footer class="footer">
+    if (s.step === "learn" || /^review/.test(s.step)) {
+      body = learnBodyHtml(s, info);
+      showPlayer = true;
+    } else if (isPause(s)) {
+      const k = pauseIndex(s);
+      const ex = exerciseOf(s, info);
+      const t = pauseState(s, k);
+      if (Exercises.isNew(ex)) {
+        const v = Exercises.view(ex, info, t, state.prefs);
+        body = `<div class="activity ex">${v.body}</div>`;
+        // Neue Übungen laufen von selbst weiter; im Testmodus lässt sich springen
+        footer = `${v.footer}${
+          s.ref.mode === "test"
+            ? `<div class="nav-row small"><button class="btn secondary btn-back" data-action="back">Zurück</button><button class="btn secondary" data-action="next">${t.done && Exercises.isDone(ex) ? "Weiter" : "Überspringen"}</button></div>`
+            : ""
+        }`;
+      } else if (ex.kind === "dhikr") body = Activities.dhikrHtml(ex, t);
+      else if (ex.kind === "sira") body = Activities.quizHtml(ex, t);
+      else body = Activities.textHtml(ex, t);
+    } else if (s.step === "reflect") body = reflectHtml(s);
+    if (footer === null) {
+      footer = `
         ${showPlayer ? `<div class="player audio-card" id="player">${playerHtml()}</div><p class="player-error" id="player-error" hidden>Die Rezitation konnte nicht geladen werden. Bitte prüfe deine Internetverbindung.</p>` : ""}
         <div class="nav-row">
           <button class="btn secondary btn-back" data-action="back" ${canGoBack(s) ? "" : "disabled"}>Zurück</button>
           <button class="btn" data-action="next" ${canGoNext(s) ? "" : "disabled"}>${nextLabel(s)}</button>
         </div>
-        <p class="how" id="session-hint">${hintText(s)}</p>
-      </footer>`;
+        <p class="how" id="session-hint">${hintText(s)}</p>`;
+    }
+    return `
+      ${sessionTopbar(s, info)}
+      ${progressHtml(s, info)}
+      <main class="content">${body}</main>
+      <footer class="footer ${isPause(s) ? "ex-footer" : ""}">${footer}</footer>`;
   }
 
   function learnBodyHtml(s, info) {
@@ -864,63 +643,16 @@
       ? `Auswendiglernen · <span class="multi">Runde ${fifths + 1} · ${fifths === 0 ? "alles sichtbar" : fifths >= Fade.PARTS ? "alles ausgegraut" : `${fifths}/${Fade.PARTS} ausgegraut`}</span>`
       : `Wiederholung ${s.step.slice(-1)}/3 · <span class="multi">aus dem Gedächtnis</span>`;
     const pages = [...new Set(info.unit.verses.map((v) => v.page))];
-    const on = Object.assign(showOf(s), { de: state.prefs.de });
-    const frag = viewOf(s) === "frag";
-    const toggle = (key, label, show) =>
-      show ? `<label class="switch-row"><input type="checkbox" class="switch" data-action="pref" data-value="${key}" ${on[key] ? "checked" : ""} />${label}</label>` : "";
     return `
       <div class="section-label">${status}</div>
-      ${PREP_ENABLED ? `<div class="view-bar">
-        <div class="seg view-switch" role="group" aria-label="Ansicht">
-          <button class="seg-btn ${!frag ? "on" : ""}" data-action="view" data-value="mushaf" aria-pressed="${!frag}">Mushaf</button>
-          <button class="seg-btn ${frag ? "on" : ""}" data-action="view" data-value="frag" aria-pressed="${frag}">Fragmente</button>
-        </div>
-        ${
-          frag
-            ? `<div class="toggle-row" aria-label="Einblenden">
-          ${toggle("emoji", "Emojis", true)}
-          ${toggle("de", "Übersetzung", info.fragments.some((f) => f.de))}
-          ${toggle("mun", "Munāsaba", munReady(s, info))}
-        </div>`
-            : ""
-        }
-      </div>` : ""}
       <div class="range-caption">${esc(info.label)} · Seite ${pages.join("–")}${info.tail ? `<br><span class="next-note">Blau: Anfang des nächsten Verses als Anschluss</span>` : ""}</div>
-      ${frag ? `<div class="read-wrap" id="read">${readHtml(s, info)}</div>` : `<div class="mushaf full" id="mushaf">${mushafHtml(s, info)}</div>`}`;
-  }
-
-  const levelsOf = (s) => (s.step === "learn" ? s.levels : s.levels.map(() => Fade.PARTS));
-
-  function mushafHtml(s, info) {
-    return Mushaf.unitHtml(info.unit, {
-      levels: levelsOf(s),
-      shapes: info.shapes,
-      wordIndex: info.wordIndex,
-      activeKey: player.activeKey,
-      tail: info.tail ? info.tail.tokens : [],
-    });
-  }
-
-  /** Fragment-Ansicht: gleiche Ausgrau-Stufen wie im Mushaf. */
-  function readHtml(s, info) {
-    const levels = levelsOf(s);
-    const active = player.activeKey;
-    const word = (t) => {
-      const cls = `t ${t.type === Quran.TOKEN_WORD ? "w" : "ayah-end"}${t.key === active ? " active" : ""}`;
-      const i = info.wordIndex.get(t);
-      const inner = t.type === Quran.TOKEN_WORD && i !== undefined ? Fade.wordHtml(info.shapes[i], levels[i] || 0) : esc(t.text);
-      return `<span class="${cls}" data-key="${t.key}">${inner}</span>`;
-    };
-    const tail = info.tail ? info.tail.tokens.map((t) => `<span class="t next">${esc(t.text)}</span>`).join(" ") : "";
-    const show = showOf(s);
-    return Prep.readHtml({
-      fragments: info.fragments,
-      emojis: emojisOf(s, info),
-      parts: munReady(s, info) ? info.mun : null,
-      show: { emoji: show.emoji, de: state.prefs.de, mun: show.mun },
-      word,
-      tail,
-    });
+      <div class="mushaf full" id="mushaf">${Mushaf.unitHtml(info.unit, {
+        levels: s.step === "learn" ? s.levels : s.levels.map(() => Fade.PARTS),
+        shapes: info.shapes,
+        wordIndex: info.wordIndex,
+        activeKey: player.activeKey,
+        tail: info.tail ? info.tail.tokens : [],
+      })}</div>`;
   }
 
   /* ---- Pausen */
@@ -930,15 +662,6 @@
     const total = PAUSES[k];
     const left = p.started ? Math.max(0, (p.end - Date.now()) / 1000) : total;
     return { started: !!p.started, done: !!p.done, left, total };
-  }
-
-  function pauseBodyHtml(s) {
-    const k = pauseIndex(s);
-    if (!s.acts[k]) s.acts[k] = Activities.init(k);
-    const t = pauseState(s, k);
-    if (k === 0) return Activities.dhikrHtml(s.acts[0], t);
-    if (k === 1) return Activities.quizHtml(s.acts[1], t);
-    return Activities.textHtml(s.acts[2], t);
   }
 
   function startTimer(s, k) {
@@ -963,6 +686,24 @@
     }
   }
 
+  /** Pause vorbei? Zeit um – und bei Lücken und Munāsaba die Aufgabe geschafft. */
+  function pauseFinished(s) {
+    const k = pauseIndex(s);
+    const ex = s.ex[k];
+    return !!s.pauses[k].done && (!ex || !Exercises.isNew(ex) || ex.kind === "quiz" || Exercises.isDone(ex) || ex.kind === "gap");
+  }
+
+  /** Neue Übungen gehen nach der Pause von selbst zur Wiederholung. */
+  function autoAdvance(s, delay) {
+    const ex = s.ex[pauseIndex(s)];
+    if (!ex || !Exercises.isNew(ex) || !pauseFinished(s)) return false;
+    const step = s.step;
+    later(() => {
+      if (currentSession() === s && s.step === step) gotoStep(s, STEPS[STEPS.indexOf(step) + 1]);
+    }, delay || 0);
+    return true;
+  }
+
   function runPauseTicker(s) {
     const k = pauseIndex(s);
     const p = s.pauses[k];
@@ -971,20 +712,16 @@
     const total = PAUSES[k];
     const tick = () => {
       const left = Math.max(0, (p.end - Date.now()) / 1000);
-      const t = document.getElementById("ring-time");
-      if (t) t.textContent = mmss(Math.ceil(left));
+      document.querySelectorAll("#ring-time").forEach((t) => (t.textContent = mmss(Math.ceil(left))));
       const bar = document.getElementById("ring-bar");
-      if (bar) {
-        const c = 2 * Math.PI * 52;
-        bar.setAttribute("stroke-dashoffset", String(c * (1 - left / total)));
-      }
+      if (bar) bar.setAttribute("stroke-dashoffset", String(2 * Math.PI * 52 * (1 - left / total)));
       const fill = document.getElementById("timer-bar-fill");
       if (fill) fill.style.width = (left / total) * 100 + "%";
       document.title = `${mmss(Math.ceil(left))} · Pause`;
       if (left <= 0) {
         stopTicker();
         finishTimer(s, k, true);
-        render(true);
+        if (!autoAdvance(s, 400)) render(true);
       }
     };
     tick();
@@ -1010,32 +747,22 @@
   /* ---- Weiter / Zurück */
 
   function canGoBack(s) {
-    return stepsOf(sessionInfo()).indexOf(s.step) > 0 || (s.step === "learn" && Math.min(...s.levels) > 0);
+    return STEPS.indexOf(s.step) > 0 || (s.step === "learn" && Math.min(...s.levels) > 0);
   }
 
   function canGoNext(s) {
-    if (s.mode === "test") return true;
-    if (s.step === "assign") return s.emojis.every(Boolean);
-    if (s.step === "order") return s.placed >= s.emojis.length;
-    if (s.step === "link") return s.linkPlaced.every(Boolean);
-    if (isPause(s)) return !!s.pauses[pauseIndex(s)].done;
+    if (s.ref.mode === "test") return true;
+    if (isPause(s)) return pauseFinished(s);
     return true;
   }
 
   function nextLabel(s) {
-    if (s.mode === "test" && isPause(s) && !s.pauses[pauseIndex(s)].done) return "Timer überspringen";
-    if (s.step === "reflect") return "Weiter";
-    return `Weiter`;
+    if (s.ref.mode === "test" && isPause(s) && !pauseFinished(s)) return "Timer überspringen";
+    return "Weiter";
   }
 
   function hintText(s) {
     switch (s.step) {
-      case "assign":
-        return s.emojis.every(Boolean) ? "Alle Fragmente haben ein Emoji. Weiter zu 1b." : "Ordne jedem Fragment ein Emoji zu.";
-      case "order":
-        return s.placed >= s.emojis.length ? `Alles richtig eingesetzt. Weiter ${sessionInfo() && sessionInfo().mun ? "zur Munāsaba" : "zum Auswendiglernen"}.` : "Setze die Fragmente der Reihe nach ein.";
-      case "link":
-        return s.linkPlaced.every(Boolean) ? "Alles an seinem Platz. Weiter zum Auswendiglernen." : "Ordne jeden Munāsaba-Teil seiner Lücke zu.";
       case "learn": {
         const f = Math.min(...s.levels);
         if (f === 0) return "Hör zu und lies mit – so oft du willst. „Weiter“ graut ein Fünftel jedes Wortes aus.";
@@ -1049,22 +776,25 @@
         return "Letzte Wiederholung. Danach kommt der Abschluss.";
       case "reflect":
         return "Freiwillig – „Weiter“ schließt den Abschnitt ab.";
-      default: {
-        const k = pauseIndex(s);
-        const p = s.pauses[k];
-        if (!p.started) return "Starte die Minute mit „Los geht's“.";
-        if (!p.done) return "Die Zeit läuft …";
-        return "Zeit um. Weiter zur Wiederholung.";
-      }
+      default:
+        return pauseFinished(s) ? "Zeit um. Weiter zur Wiederholung." : "Die Zeit läuft …";
     }
   }
 
   function gotoStep(s, step) {
+    clearLater();
+    Exercises.reset();
     s.step = step;
     if (isPause(s)) {
       const k = pauseIndex(s);
-      if (!s.acts[k]) s.acts[k] = Activities.init(k);
-      if (k > 0) startTimer(s, k);
+      // Eine schon beendete Pause beginnt beim erneuten Betreten von vorn
+      if (s.pauses[k].done) {
+        s.pauses[k] = {};
+        s.ex[k] = null;
+      }
+      const info = sessionInfo();
+      if (info) exerciseOf(s, info);
+      startTimer(s, k);
     }
     save();
     render();
@@ -1081,16 +811,12 @@
       render(true);
       return;
     }
-    if (isPause(s)) {
-      const k = pauseIndex(s);
-      if (!s.pauses[k].done) {
-        if (s.mode !== "test") return;
-        finishTimer(s, k, false); // Testmodus: Timer überspringen
-      }
+    if (isPause(s) && !pauseFinished(s)) {
+      if (s.ref.mode !== "test") return;
+      finishTimer(s, pauseIndex(s), false); // Testmodus: überspringen
     }
     if (s.step === "reflect") return completeUnit(s);
-    const steps = stepsOf(sessionInfo());
-    gotoStep(s, steps[steps.indexOf(s.step) + 1]);
+    gotoStep(s, STEPS[STEPS.indexOf(s.step) + 1]);
   }
 
   function back() {
@@ -1102,45 +828,46 @@
       render(true);
       return;
     }
-    const steps = stepsOf(sessionInfo());
-    const i = steps.indexOf(s.step);
-    if (i > 0) gotoStep(s, steps[i - 1]);
+    const i = STEPS.indexOf(s.step);
+    if (i > 0) gotoStep(s, STEPS[i - 1]);
   }
 
-  async function completeUnit(s) {
+  function completeUnit(s) {
     const info = sessionInfo();
-    const d = s.acts;
     state.journal.push({
       date: today(),
       label: `${info.label} · S. ${s.ref.page}`,
-      dhikrCount: d[0] && d[0].count ? String(d[0].count) : "",
-      learned: (d[1] && d[1].note) || "",
-      takeaway: (d[2] && d[2].note) || "",
       d1: s.reflect.d1 || "",
       d7: s.reflect.d7 || "",
       life: s.reflect.life || "",
     });
     if (state.journal.length > 200) state.journal = state.journal.slice(-200);
     player.stop();
-    if (s.mode === "test") {
-      state.sessions.test = null;
-      save();
-      return go("unitDone", { mode: "test", ref: s.ref, label: info.label });
-    }
-    const p = state.progress;
-    const day = planCtx.days[p.day];
-    state.sessions.plan = null;
-    if (p.unit + 1 < day.units.length) {
-      p.unit++;
-      save();
-      return go("unitDone", { mode: "plan", label: info.label });
-    }
-    p.completed[p.day] = today();
-    p.day++;
-    p.unit = 0;
-    p.lastDoneDate = today();
+    const mode = s.ref.mode;
+    state.sessions[mode] = null;
     save();
-    go(p.day >= planCtx.days.length ? "planDone" : "dayDone");
+    go("unitDone", { mode, ref: s.ref, label: info.label });
+  }
+
+  /** Antworten in den Übungen. */
+  function exerciseAction(value) {
+    const s = currentSession();
+    const info = sessionInfo();
+    if (!s || !info || !isPause(s)) return;
+    const k = pauseIndex(s);
+    const ex = s.ex[k];
+    if (!ex) return;
+    const step = s.step;
+    Exercises.act(ex, info, value, {
+      save,
+      render: () => {
+        if (currentSession() === s && s.step === step) render(true);
+      },
+      later: (fn, ms, cancel) => later(() => (currentSession() === s && s.step === step ? fn() : cancel && cancel()), ms),
+      buzz: () => navigator.vibrate && navigator.vibrate(40),
+      // Aufgabe geschafft: ist die Zeit schon um, geht es weiter
+      done: () => autoAdvance(s, ex.kind === "mun" ? 1600 : 300),
+    });
   }
 
   function afterSession() {
@@ -1149,141 +876,56 @@
     if (!s || !info) return;
     const el = document.getElementById("mushaf");
     if (el) Mushaf.fit(el);
-    const prep = document.getElementById("prep");
-    const prefs = state.prefs;
-    if (prep && s.step === "assign") {
-      const st = {
-        fragments: info.fragments,
-        emojis: s.emojis,
-        palette: s.palette,
-        parts: null, // Munāsaba erst nach 1c
-        get showDe() { return prefs.de; },
-        set showDe(v) { prefs.de = v; },
-      };
-      Prep.mountAssign(prep, st, () => {
-        save();
-        refreshNav(s);
-      });
-    }
-    if (prep && s.step === "link" && info.mun) {
-      const st = {
-        fragments: info.fragments,
-        emojis: emojisOf(s, info),
-        parts: info.mun,
-        order: s.linkOrder,
-        placed: s.linkPlaced,
-        get showDe() { return prefs.de; },
-        set showDe(v) { prefs.de = v; },
-      };
-      Prep.mountLink(prep, st, () => {
-        save();
-        refreshNav(s);
-      });
-    }
-    if (prep && s.step === "order") {
-      const st = { fragments: info.fragments, emojis: emojisOf(s, info), order: s.order, placed: s.placed, wheel: s.wheel };
-      Prep.mountOrder(prep, st, () => {
-        s.placed = st.placed;
-        s.wheel = st.wheel;
-        save();
-        refreshNav(s);
-      });
+    // Lückentext: die aktuelle Lücke in die Mitte holen
+    const gap = document.querySelector("#mushaf .t.gap.now, #mushaf .t.fill");
+    if (gap) {
+      const r = gap.getBoundingClientRect();
+      const footer = document.querySelector(".footer");
+      const free = window.innerHeight - (footer ? footer.offsetHeight : 0);
+      if (r.top < 70 || r.bottom > free - 20) window.scrollBy({ top: r.top - free / 2, behavior: "smooth" });
     }
     if (document.getElementById("player")) {
       const verses = info.unit.verses.map((v) => ({ surah: v.surah, ayah: v.ayah }));
-      const tail = info.tail && { surah: info.tail.verse.surah, ayah: info.tail.verse.ayah, words: info.tail.complete ? info.tail.verseWords.length : TAIL_WORDS, verseWords: info.tail.verseWords };
+      const tail = info.tail && { surah: info.tail.verse.surah, ayah: info.tail.verse.ayah, words: info.tail.words.length, verseWords: info.tail.verseWords };
       const sig = state.reciter + "|" + verses.map((v) => v.surah + ":" + v.ayah).join(",");
       if (player.signature !== sig) player.load(state.reciter, verses, tail);
       updatePlayerUi(true);
     }
-    if (isPause(s)) runPauseTicker(s);
-  }
-
-  /** Weiter/Zurück und Hinweis aktualisieren, ohne den Inhalt neu zu zeichnen. */
-  function refreshNav(s) {
-    const nextBtn = document.querySelector('[data-action="next"]');
-    if (nextBtn) nextBtn.disabled = !canGoNext(s);
-    const backBtn = document.querySelector('[data-action="back"]');
-    if (backBtn) backBtn.disabled = !canGoBack(s);
-    const hint = document.getElementById("session-hint");
-    if (hint) hint.textContent = hintText(s);
+    if (isPause(s)) {
+      if (!autoAdvance(s, 300)) runPauseTicker(s);
+    }
   }
 
   /* ------------------------------------------------------------- Abschlüsse */
 
-  /** Abschluss-Screen wie die Auswertung im Design-Kit. */
-  function doneScreen(title, card, buttons) {
+  function viewUnitDone() {
     return `
-      <header class="topbar kit"><span class="topbar-side"></span><span class="topbar-title">${title}</span><span class="topbar-side"></span></header>
+      <header class="topbar kit"><span class="topbar-side"></span><span class="topbar-title">Geschafft!</span><span class="topbar-side"></span></header>
       <main class="content result">
         <div class="done-icon">${icon("check")}</div>
-        <h1 class="result-title">${title}</h1>
+        <h1 class="result-title">${esc(sizeLabel(screen.ref.size))} geschafft!</h1>
         <p class="result-sub">Ma schā' Allāh</p>
-        <div class="card score-card">${card}</div>
+        <div class="card score-card"><span class="label">Gelernt</span><span class="score-num">${esc(screen.label)}</span><span class="score-pct">Seite ${screen.ref.page}</span></div>
       </main>
-      <footer class="footer two">${buttons}</footer>`;
+      <footer class="footer two">
+        <button class="btn secondary" data-action="to-pick">Zur Seite</button>
+        <button class="btn" data-action="next-unit">Nächster Teil</button>
+      </footer>`;
   }
 
-  const scoreCard = (label, num, pct) => `<span class="label">${label}</span><span class="score-num">${num}</span>${pct ? `<span class="score-pct">${pct}</span>` : ""}`;
-
-  function viewUnitDone() {
-    if (screen.mode === "test") {
-      return doneScreen(
-        "Viertel geschafft!",
-        scoreCard("Gelernt", esc(screen.label), "Aus der freien Auswahl"),
-        `<button class="btn secondary" data-action="test-goto" data-value="area">Zur Auswahl</button>
-         <button class="btn" data-action="test-next">Nächstes Viertel</button>`
-      );
-    }
-    const p = state.progress;
-    const day = planCtx.days[p.day];
-    return doneScreen(
-      "Viertel geschafft!",
-      scoreCard("Gelernt", esc(screen.label), `Als Nächstes: Viertel ${p.unit + 1} von ${day.units.length} · ${esc(Quran.label(day.units[p.unit]))}`),
-      `<button class="btn secondary" data-action="home">Später</button>
-       <button class="btn" data-action="learn">Weiter</button>`
-    );
-  }
-
-  function viewDayDone() {
-    const sched = planSchedule();
-    const next = sched[state.progress.day];
-    const total = planCtx.days.length;
-    return doneScreen(
-      "Tagespensum geschafft!",
-      scoreCard("Lerntage geschafft", `${state.progress.day} von ${total}`, `${Math.round((state.progress.day / total) * 100)} %${next && next.date ? ` · nächster Lerntag: ${dateLabel(next.date)}` : ""}`),
-      `<button class="btn" data-action="home">Zur Übersicht</button>`
-    );
-  }
-
-  function viewPlanDone() {
-    return doneScreen(
-      `${esc(suraName(state.plan.surah))} gelernt!`,
-      scoreCard("Plan abgeschlossen", `${planCtx.days.length} Lerntage`, "Möge Allah es dir leicht machen, die Sure zu bewahren."),
-      `<button class="btn secondary" data-action="home">Zur Übersicht</button>
-       <button class="btn" data-action="new-plan">Neuer Plan</button>`
-    );
-  }
-
-  /** Nächstes Viertel: auf der Seite, dann nächste Seite der Sure, dann nächste Sure. */
-  async function testNext() {
-    const t = state.test;
-    await Quran.loadPages([t.page, t.page + 1, t.page + 2]);
-    const parts = Quran.surahPageParts(t.page, t.surah);
-    const idx = parts.findIndex((u) => u.part === t.part);
-    const m = Quran.meta(t.surah);
-    if (idx >= 0 && idx + 1 < parts.length) t.part = parts[idx + 1].part;
-    else if (t.page < m.p1) {
-      t.page++;
-      t.part = (Quran.surahPageParts(t.page, t.surah)[0] || { part: 0 }).part;
-    } else if (t.surah < 114) {
-      t.surah++;
-      t.page = Quran.meta(t.surah).p0;
-      await Quran.loadPages([t.page, t.page + 1]);
-      t.part = (Quran.surahPageParts(t.page, t.surah)[0] || { part: 0 }).part;
-    }
-    save();
-    startTest(true);
+  /** Nächster Teil: auf der Seite, sonst auf der nächsten Seite des Bereichs. */
+  async function nextUnit() {
+    const ref = screen.ref;
+    const range = await resolveRange(rangeOf(ref.mode, ref.sel || state.sel));
+    await Quran.loadPages([ref.page, ref.page + 1, ref.page + 2]);
+    let { page, part } = ref;
+    if (part + 1 < Quran.pageUnits(page, ref.size, range.has).length) part++;
+    else if (page < range.p1) {
+      page++;
+      part = 0;
+    } else return openPick(ref.mode, ref.page);
+    if (ref.mode === "main" && ref.sel) state.sel = Object.assign({}, ref.sel);
+    startUnit(ref.mode, page, ref.size, part, true);
   }
 
   /* ----------------------------------------------------------------- Player */
@@ -1341,7 +983,7 @@
     const active = player.activeKey;
     if (active !== lastActive || force) {
       lastActive = active;
-      document.querySelectorAll("#mushaf .t[data-key], #read .t[data-key]").forEach((t) => t.classList.toggle("active", t.dataset.key === active));
+      document.querySelectorAll("#mushaf .t[data-key]").forEach((t) => t.classList.toggle("active", t.dataset.key === active));
     }
   }
 
@@ -1379,6 +1021,20 @@
   function stopTicker() {
     if (ticker) clearInterval(ticker);
     ticker = null;
+  }
+
+  /** Verzögerte Schritte (werden beim Screenwechsel verworfen). */
+  function later(fn, ms) {
+    const id = setTimeout(() => {
+      laterTimers = laterTimers.filter((x) => x !== id);
+      fn();
+    }, ms);
+    laterTimers.push(id);
+  }
+
+  function clearLater() {
+    laterTimers.forEach(clearTimeout);
+    laterTimers = [];
   }
 
   async function requestWakeLock() {
@@ -1457,62 +1113,69 @@
     );
   }
 
-  function confirmDialog(title, text, okLabel, onOk) {
-    openSheet(
-      `<div class="dialog" role="alertdialog">
-        <h3>${title}</h3><p>${text}</p>
-        <button class="btn" data-action="dialog-ok">${okLabel}</button>
-        <button class="link-btn muted" data-action="close-sheet">Abbrechen</button>
-      </div>`,
-      (el) => {
-        el.classList.add("dialog-backdrop");
-        el.querySelector('[data-action="dialog-ok"]').addEventListener("click", (e) => {
-          e.stopPropagation();
-          closeSheet();
-          onOk();
-        });
-      }
-    );
-  }
-
   /* ------------------------------------------------------------------ Events */
 
   async function handleAction(action, value, target, event) {
     const s = currentSession();
     switch (action) {
-      case "home":
-        return state.plan ? go("home", { tab: "today" }) : openSetup();
-      case "tab":
-        return go("home", { tab: value });
-      case "setup":
-        return openSetup();
-      case "new-plan":
-        return openSetup();
-      case "setup-sura":
-        draft.surah = +value;
-        draft.step = 1;
-        render();
-        return window.scrollTo(0, 0);
-      case "setup-next":
-        draft.step = Math.min(2, draft.step + 1);
-        render();
-        return window.scrollTo(0, 0);
-      case "setup-back":
-        draft.step = Math.max(0, draft.step - 1);
-        render();
-        return window.scrollTo(0, 0);
-      case "weekday": {
-        const d = +value;
-        draft.weekdays = target.checked ? [...new Set([...draft.weekdays, d])] : draft.weekdays.filter((x) => x !== d);
+      case "start":
+        return go("start");
+      // Startseite
+      case "sel-open":
+        screen.open = screen.open === value ? null : value;
+        screen.query = "";
+        render(true);
+        return;
+      case "sel-juz":
+        state.sel.mode = "juz";
+        state.sel.juz = +value;
+        screen.open = null;
+        save();
+        return render(true);
+      case "sel-surah": {
+        const n = +value;
+        state.sel = Object.assign(state.sel, { mode: "surah", surah: n, from: 1, to: Quran.meta(n).ayahs });
+        screen.query = "";
+        save();
+        render(true);
+        const vr = document.querySelector(".verse-range");
+        if (vr) vr.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        return;
+      }
+      case "sel-from":
+      case "sel-to": {
+        const v = +target.value;
+        state.sel.mode = "surah";
+        if (action === "sel-from") state.sel.from = v;
+        else state.sel.to = v;
+        if (state.sel.from > state.sel.to) {
+          if (action === "sel-from") state.sel.to = state.sel.from;
+          else state.sel.from = state.sel.to;
+        }
+        save();
         return render(true);
       }
-      case "daily":
-        draft.daily = +value;
+      case "sel-page-step":
+        setPage(state.sel.page + +value);
+        return;
+      case "start-range":
+        return openPick("main");
+      case "resume":
+        return resumeSession("main");
+      case "test":
+        return openPick("test");
+      // Seitenauswahl
+      case "pick-size":
+        state.pick[screen.mode].size = +value;
+        save();
         return render(true);
-      case "start-plan":
-        return startPlan(false);
-      case "learn":
-        return openPlanSession();
+      case "pick-page":
+        return pickPage(screen.mode, +value);
+      case "to-pick":
+        return openPick(screen.mode, screen.ref && screen.ref.page);
+      case "next-unit":
+        return nextUnit();
+      // Rezitator
       case "change-reciter":
         return openReciterSheet();
       case "reciter":
@@ -1533,43 +1196,13 @@
         return;
       case "close-sheet":
         return closeSheet();
-      // Testmodus
-      case "test":
-        return go("testpick", { step: "sura" });
-      case "test-goto":
-        return go("testpick", { step: value });
-      case "test-sura": {
-        const n = +value;
-        if (n !== state.test.surah) state.test = { surah: n, page: Quran.meta(n).p0, part: -1 };
-        save();
-        return go("testpick", { step: "page" });
-      }
-      case "test-page":
-        if (+value !== state.test.page) {
-          state.test.page = +value;
-          state.test.part = -1;
-        }
-        save();
-        return go("testpick", { step: "area" });
-      case "test-part":
-        return selectTestPart(+value);
-      case "test-start":
-        return startTest();
-      case "test-next":
-        return testNext();
       // Sitzung
       case "close-session":
         player.stop();
-        if (s && s.mode === "test") return go("testpick", { step: "area" });
-        return state.plan ? go("home", { tab: "today" }) : openSetup();
-      case "view":
-        if (!s) return;
-        s.view = value === "mushaf" ? "mushaf" : "frag";
-        save();
-        return render(true);
+        if (s) return openPick(s.ref.mode, s.ref.page);
+        return go("start");
       case "pref":
         if (value === "de") state.prefs.de = !state.prefs.de;
-        else if (s) s.show = Object.assign(showOf(s), { [value]: !showOf(s)[value] });
         save();
         return render(true);
       case "next":
@@ -1577,18 +1210,21 @@
       case "back":
         return back();
       case "goto-step":
-        if (s && s.mode === "test") gotoStep(s, value);
+        if (s && s.ref.mode === "test") gotoStep(s, value);
         return;
       case "step-jump": {
-        if (!s || s.mode !== "test") return;
-        const steps = stepsOf(sessionInfo());
-        const i = steps.indexOf(s.step) + +value;
-        if (i >= 0 && i < steps.length) gotoStep(s, steps[i]);
+        if (!s || s.ref.mode !== "test") return;
+        const i = STEPS.indexOf(s.step) + +value;
+        if (i >= 0 && i < STEPS.length) gotoStep(s, STEPS[i]);
         return;
       }
       case "step-sheet":
-        if (s) openStepSheet(s, sessionInfo());
+        if (s) openStepSheet(s);
         return;
+      case "ex":
+        ensureAudioCtx();
+        return exerciseAction(value);
+      // allgemeine Aktivitäten (Sure ohne eigene Inhalte)
       case "timer-start":
         if (s && isPause(s)) {
           ensureAudioCtx();
@@ -1597,7 +1233,7 @@
         }
         return;
       case "quiz-answer": {
-        const a = s.acts[1];
+        const a = s.ex[1];
         const qid = a.order[a.pos];
         if (a.answers[qid] === undefined && !s.pauses[1].done) {
           a.answers[qid] = +value;
@@ -1607,16 +1243,17 @@
         return;
       }
       case "quiz-next":
-        s.acts[1].pos++;
+        s.ex[1].pos++;
         save();
         return render(true);
       case "text-answer":
-        if (s.acts[2].choice === null) {
-          s.acts[2].choice = +value;
+        if (s.ex[2].choice === null) {
+          s.ex[2].choice = +value;
           save();
           render(true);
         }
         return;
+      // Rezitation
       case "play":
         ensureAudioCtx();
         return player.toggle();
@@ -1639,45 +1276,45 @@
   document.addEventListener("click", (e) => {
     const el = e.target.closest("[data-action]");
     if (el) {
-      if (el.tagName === "INPUT") return; // Checkboxen/Radios über "change"
+      if (el.tagName === "INPUT" || el.tagName === "SELECT") return; // über "change"
       if (el.tagName === "BUTTON" && el.disabled) return;
       handleAction(el.dataset.action, el.dataset.value, el, e);
       return;
     }
     // Tippen auf einen Vers spielt ab diesem Vers
-    const tok = e.target.closest("#mushaf .t[data-key], #read .t[data-key]");
-    if (tok) {
+    const tok = e.target.closest("#mushaf .t[data-key]");
+    const s = currentSession();
+    if (tok && s && !isPause(s)) {
       ensureAudioCtx();
       player.playFromKey(tok.dataset.key);
     }
   });
 
   document.addEventListener("change", (e) => {
-    const el = e.target.closest("input[data-action]");
+    const el = e.target.closest("input[data-action], select[data-action]");
     if (el) handleAction(el.dataset.action, el.dataset.value, el, e);
   });
 
-  // Eingaben (Anzahl, Notizen) sofort speichern
+  // Eingaben (Suche, Seite, Notizen) sofort übernehmen
   document.addEventListener("input", (e) => {
     const field = e.target.dataset && e.target.dataset.field;
     if (field === "sura-search") {
+      screen.query = e.target.value;
       const list = document.getElementById("sura-list");
-      const q = e.target.value;
-      if (screen.name === "setup") {
-        draft.query = q;
-        list.innerHTML = suraListHtml(draft.surah, "setup-sura", q);
-      } else {
-        screen.query = q;
-        list.innerHTML = suraListHtml(state.test.surah, "test-sura", q);
-      }
+      if (list) list.innerHTML = suraListHtml(state.sel.surah, screen.query);
+      return;
+    }
+    if (field === "sel-page") {
+      if (e.target.value !== "") setPage(+e.target.value);
       return;
     }
     const s = currentSession();
     if (!field || !s) return;
     const v = e.target.value;
-    if (field === "dhikr-count") s.acts[0].count = v;
-    else if (field === "quiz-note") s.acts[1].note = v;
-    else if (field === "text-note") s.acts[2].note = v;
+    const ex = isPause(s) ? s.ex[pauseIndex(s)] : null;
+    if (field === "dhikr-count" && ex) ex.count = v;
+    else if (field === "quiz-note" && ex) ex.note = v;
+    else if (field === "text-note" && ex) ex.note = v;
     else if (field === "reflect-d1") s.reflect.d1 = v;
     else if (field === "reflect-d7") s.reflect.d7 = v;
     else if (field === "reflect-life") s.reflect.life = v;
@@ -1690,13 +1327,18 @@
       handleAction("reciter", e.target.dataset.value, e.target, e);
     }
     if (e.key === "Escape") closeSheet();
+    // Seitenauswahl: Pfeiltasten blättern
+    if (screen.name === "pick" && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName || "")) {
+      if (e.key === "ArrowLeft") pickPage(screen.mode, -1);
+      if (e.key === "ArrowRight") pickPage(screen.mode, 1);
+    }
   });
 
   let resizeTimer = null;
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
-      for (const id of ["mushaf", "mini-page"]) {
+      for (const id of ["mushaf", "pick-page"]) {
         const el = document.getElementById(id);
         if (el) Mushaf.fit(el);
       }
@@ -1714,11 +1356,10 @@
     render();
     try {
       if (document.fonts && document.fonts.load) await Promise.race([Promise.all(['20px "UthmanicHafs"', '20px "MadinaHafs"'].map((f) => document.fonts.load(f))), new Promise((r) => setTimeout(r, 4000))]);
-      await loadPlanContext();
       // Abgelaufene Timer beim Laden abschließen
-      for (const s of [state.sessions.plan, state.sessions.test]) {
-        if (!s) continue;
-        s.pauses.forEach((p, k) => {
+      for (const s of [state.sessions.main, state.sessions.test]) {
+        if (!s || !Array.isArray(s.pauses)) continue;
+        s.pauses.forEach((p) => {
           if (p.started && !p.done && Date.now() >= p.end) p.done = true;
         });
       }
@@ -1728,9 +1369,8 @@
       render();
       return;
     }
-    if (params.has("test")) return go("testpick", { step: "sura" });
-    if (!state.plan) return openSetup();
-    go("home", { tab: "today" });
+    if (params.has("test")) return openPick("test");
+    go("start");
   }
 
   init();

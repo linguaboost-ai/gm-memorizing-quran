@@ -54,6 +54,7 @@
           text: ws.map((w) => w.text).join(" ") + (last && end ? " " + end.text : ""),
           de: b.de || "",
           emoji: b.emoji || "",
+          bullet: b.bullet || "",
           mun: mun[i] || null,
         });
         start = b.end;

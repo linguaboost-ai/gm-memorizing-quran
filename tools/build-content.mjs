@@ -8,6 +8,14 @@
 //                  je Fragment eine Aussage und eine Frage, die das nächste
 //                  Fragment beantwortet; Fragment 0 = Einstieg vor Vers 1
 //                  (erstellt aus f-a_biqai-old.txt und ghafir_biqai.txt)
+//   ghafir_geschichte.csv  je Fragment ein Stichpunkt und das Emoji
+//                  (ersetzt das Emoji aus ghafir.csv)
+//   ghafir_luecken.csv     bekannte Wörter je Vers für den Lückentext
+//                  (Wort, Übersetzung, drei falsche Wörter, Alltagsbezug)
+//   ghafir_fragen.csv      Fragen je Vers (deutsch), Antworten arabisch
+//                  (Antwort 1 ist richtig)
+//   ghafir_teile.csv       Viertel und Hälften jeder Seite (Verse)
+//   ghafir_anschluss.csv   Anzahl der Anschlusswörter je Versanfang
 //
 //   npm run build:content
 //
@@ -136,10 +144,17 @@ for (const [key, frs] of byVerse) {
   let csvSum = 0;
   let prev = 0;
   const out = [];
+  // Gleiche Wortzahl wie im Madani-Text: Grenzen direkt nach der Wortzahl
+  // (sonst, z. B. bei getrennt geschriebenem „يَا قَوْمِ“, über das Gerüst)
+  const counts = frs.map((f) => f.ar.split(/\s+/).filter(Boolean).length);
+  const byCount = counts.reduce((x, y) => x + y, 0) === words.length;
+  let countSum = 0;
   frs.forEach((f, i) => {
     csvSum += skeleton(f.ar).length;
+    countSum += counts[i];
     let end = words.length;
-    if (i < frs.length - 1) {
+    if (i < frs.length - 1 && byCount) end = countSum;
+    else if (i < frs.length - 1) {
       // Wortende mit der nächsten Gerüstlänge, mindestens ein Wort, Platz für die übrigen
       let best = prev + 1;
       for (let j = prev + 1; j <= words.length - (frs.length - 1 - i); j++) {
@@ -178,6 +193,106 @@ if (existsSync(join(root, "ghafir_munasaba.csv"))) {
   }
 }
 
+// --- Stichpunkte und Emojis je Fragment ---
+let bullets = 0;
+if (existsSync(join(root, "ghafir_geschichte.csv"))) {
+  for (const [s, a, f, bullet, emoji] of parseCsv(read("ghafir_geschichte.csv")).slice(1)) {
+    if (!/^\d+$/.test(s) || !/^\d+$/.test(a) || !/^\d+$/.test(f)) continue;
+    const entry = (fragments[`${+s}:${+a}`] || [])[+f - 1];
+    if (!entry) {
+      console.warn(`Geschichte ${s}:${a} Fragment ${f}: kein solches Fragment`);
+      continue;
+    }
+    if (bullet) entry.bullet = bullet;
+    if (emoji) entry.emoji = emoji;
+    bullets++;
+  }
+}
+
+// Wörter (Uthmani) einer Sure je Vers, für die Zuordnung der Lückenwörter
+const PAUSE = /[\u06D6-\u06DB]/g;
+const bare = (w) => w.replace(PAUSE, "").trim();
+const sameWord = (a, b) => bare(a) === bare(b) || (skeleton(a) && skeleton(a) === skeleton(b));
+
+/** Position einer Wortfolge im Vers: [erstes, letztes] Wort (0-basiert) oder null. */
+function findWords(words, phrase) {
+  let [text, nth] = phrase.split("@");
+  nth = +nth || 1;
+  const want = text.trim().split(/\s+/);
+  let seen = 0;
+  for (let i = 0; i + want.length <= words.length; i++) {
+    if (want.every((w, j) => sameWord(words[i + j], w)) && ++seen === nth) return [i, i + want.length - 1];
+  }
+  return null;
+}
+
+// --- Lückenwörter ---
+const gaps = {};
+let gapCount = 0;
+if (existsSync(join(root, "ghafir_luecken.csv"))) {
+  for (const r of parseCsv(read("ghafir_luecken.csv")).slice(1)) {
+    const [s, a, word, de, w1, d1, w2, d2, w3, d3, ctx] = r;
+    if (!/^\d+$/.test(s) || !/^\d+$/.test(a) || !word) continue;
+    surahWords[+s] = surahWords[+s] || loadSurah(+s);
+    const words = surahWords[+s][+a] || [];
+    const pos = findWords(words, word);
+    if (!pos) {
+      console.warn(`Lücke ${s}:${a} „${word}“ nicht im Vers gefunden`);
+      continue;
+    }
+    const wrong = [[w1, d1], [w2, d2], [w3, d3]].filter(([w]) => w);
+    if (wrong.length < 3) {
+      console.warn(`Lücke ${s}:${a} „${word}“: weniger als drei falsche Wörter`);
+      continue;
+    }
+    const clash = wrong.find(([w]) => findWords(words, w));
+    if (clash) console.warn(`Lücke ${s}:${a}: falsches Wort „${clash[0]}“ steht im Vers`);
+    (gaps[`${+s}:${+a}`] = gaps[`${+s}:${+a}`] || []).push({ w: pos, de, wrong, ctx: ctx || "" });
+    gapCount++;
+  }
+}
+
+// --- Fragen zum Abschnitt ---
+const questions = {};
+let questionCount = 0;
+if (existsSync(join(root, "ghafir_fragen.csv"))) {
+  for (const r of parseCsv(read("ghafir_fragen.csv")).slice(1)) {
+    const [s, a, q, ...rest] = r;
+    if (!/^\d+$/.test(s) || !/^\d+$/.test(a) || !q) continue;
+    const answers = [];
+    for (let i = 0; i + 1 < rest.length && answers.length < 4; i += 2) if (rest[i]) answers.push([rest[i], rest[i + 1] || ""]);
+    if (answers.length < 4 || new Set(answers.map(([x]) => bare(x))).size < 4) {
+      console.warn(`Frage ${s}:${a} „${q}“: keine vier verschiedenen Antworten`);
+      continue;
+    }
+    (questions[`${+s}:${+a}`] = questions[`${+s}:${+a}`] || []).push({ q, a: answers });
+    questionCount++;
+  }
+}
+
+// --- Teile je Seite: { "467": { s: 40, 4: [[1, 3], …], 2: [[1, 4], …] } } ---
+const parts = {};
+const parseRanges = (txt) =>
+  txt
+    .split("|")
+    .map((x) => x.trim().split("-").map(Number))
+    .filter((x) => x[0])
+    .map(([a, b]) => [a, b || a]);
+if (existsSync(join(root, "ghafir_teile.csv"))) {
+  for (const [s, page, q4, q2] of parseCsv(read("ghafir_teile.csv")).slice(1)) {
+    if (!/^\d+$/.test(s) || !/^\d+$/.test(page)) continue;
+    parts[+page] = { s: +s, 4: parseRanges(q4 || ""), 2: parseRanges(q2 || "") };
+  }
+}
+
+// --- Anschluss: Wörter am Versanfang ---
+const tails = {};
+if (existsSync(join(root, "ghafir_anschluss.csv"))) {
+  for (const [s, a, n] of parseCsv(read("ghafir_anschluss.csv")).slice(1)) {
+    if (/^\d+$/.test(s) && /^\d+$/.test(a) && /^[1-9]$/.test(n)) tails[`${+s}:${+a}`] = +n;
+  }
+}
+
 const header = "// Generiert von tools/build-content.mjs – nicht von Hand bearbeiten.\n";
 writeFileSync(
   join(root, "data/content.js"),
@@ -186,6 +301,11 @@ writeFileSync(
     `window.CONTENT_QUIZ=${JSON.stringify(quiz)};\n` +
     `window.CONTENT_TEXTS=${JSON.stringify(texts)};\n` +
     `window.CONTENT_FRAGMENTS=${JSON.stringify(fragments)};\n` +
-    `window.CONTENT_MUNASABA=${JSON.stringify(munasaba)};\n`
+    `window.CONTENT_MUNASABA=${JSON.stringify(munasaba)};\n` +
+    `window.CONTENT_GAPS=${JSON.stringify(gaps)};\n` +
+    `window.CONTENT_QUESTIONS=${JSON.stringify(questions)};\n` +
+    `window.CONTENT_PARTS=${JSON.stringify(parts)};\n` +
+    `window.CONTENT_TAIL=${JSON.stringify(tails)};\n`
 );
 console.log(`${dhikr.length} Adhkar, ${quiz.length} Quizfragen, ${texts.length} Texte, ${byVerse.size} Verse mit Fragmenten (${unmatched} Grenzen nur ungefähr), Munāsaba für ${munCount} Fragmente.`);
+console.log(`Ghāfir: ${bullets} Stichpunkte, ${gapCount} Lückenwörter, ${questionCount} Fragen, ${Object.keys(parts).length} Seiten mit Teilen, ${Object.keys(tails).length} Anschlüsse.`);

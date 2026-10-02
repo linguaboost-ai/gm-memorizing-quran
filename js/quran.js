@@ -1,12 +1,12 @@
 /*
- * Quran-Daten (Madani-Mushaf, 604 Seiten à 15 Zeilen): laden, Seiten, Suren,
- * Seitenviertel und Tagesplan.
+ * Quran-Daten (Madani-Mushaf, 604 Seiten à 15 Zeilen): laden, Seiten, Suren
+ * und Seitenteile (Viertel, Hälften, ganze Seite).
  *
  * Positionen werden in "Zeilen" gemessen: Seite p, Zeile l (1–15) liegt bei
  * (p - 1) * 15 + (l - 1). Innerhalb einer Zeile wird jedem Token der gleiche
  * Anteil zugeteilt.
  *
- * Ein Lernabschnitt ("Einheit") ist ein Seitenviertel: eine Folge ganzer
+ * Ein Lernabschnitt ("Einheit") ist ein Teil einer Seite: eine Folge ganzer
  * Verse in Mushaf-Reihenfolge – auch über Surengrenzen hinweg.
  */
 (function () {
@@ -113,38 +113,81 @@
 
   const juzOfPage = (p) => (juzList.find((j) => j.p0 <= p && p <= j.p1) || juzList[juzList.length - 1]).n;
 
-  /* -------------------------------------------------------- Seitenviertel */
+  /* ---------------------------------------------------------- Seitenteile */
+
+  const wordCount = (v) => v.tokens.filter((t) => t.type === TOKEN_WORD).length;
 
   /**
-   * Teilt die auf Seite p beginnenden Verse in (höchstens) vier etwa gleich
-   * große Teile aus ganzen Versen. Bei weniger als vier Versen: ein Teil pro Vers.
+   * Teilt Verse in höchstens k zusammenhängende Teile mit möglichst gleich
+   * vielen Wörtern. Ein Teil endet nie mit einem sehr kurzen Vers (z. B. حمٓ),
+   * außer mit dem letzten Vers – lieber wird ein Teil etwas länger. Wo möglich
+   * wird an Surengrenzen geteilt.
    */
-  function pageParts(p) {
-    const verses = versesStartingOn(p);
-    if (!verses.length) return [];
-    const n = Math.min(4, verses.length);
-    const s = verseStart(verses[0]);
-    const e = verses[verses.length - 1].end;
-    const cuts = [];
-    let prev = -1;
-    for (let k = 1; k < n; k++) {
-      const target = s + ((e - s) * k) / n;
-      let best = prev + 1;
-      for (let i = prev + 1; i <= verses.length - 1 - (n - k); i++) {
-        if (Math.abs(verses[i].end - target) < Math.abs(verses[best].end - target)) best = i;
+  function splitVerses(verses, k) {
+    const n = verses.length;
+    const w = verses.map(wordCount);
+    const pre = [0];
+    for (const x of w) pre.push(pre[pre.length - 1] + x);
+    const canEnd = (i) => i === n - 1 || w[i] > 2 || verses[i + 1].surah !== verses[i].surah;
+    for (let kk = Math.min(k, n); kk >= 1; kk--) {
+      const target = pre[n] / kk;
+      const cost = Array.from({ length: kk + 1 }, () => new Array(n + 1).fill(Infinity));
+      const from = Array.from({ length: kk + 1 }, () => new Array(n + 1).fill(-1));
+      cost[0][0] = 0;
+      for (let j = 1; j <= kk; j++) {
+        for (let i = 1; i <= n; i++) {
+          if (!canEnd(i - 1)) continue;
+          for (let m = j - 1; m < i; m++) {
+            if (cost[j - 1][m] === Infinity) continue;
+            // Teile über eine Surengrenze hinweg nur, wenn es nicht anders geht
+            const mixed = verses[m].surah !== verses[i - 1].surah ? target * target : 0;
+            const c = cost[j - 1][m] + (pre[i] - pre[m] - target) ** 2 + mixed;
+            if (c < cost[j][i]) {
+              cost[j][i] = c;
+              from[j][i] = m;
+            }
+          }
+        }
       }
-      cuts.push(best);
-      prev = best;
+      if (cost[kk][n] === Infinity) continue;
+      const groups = [];
+      for (let j = kk, i = n; j >= 1; j--) {
+        const m = from[j][i];
+        groups.unshift(verses.slice(m, i));
+        i = m;
+      }
+      return groups;
     }
-    cuts.push(verses.length - 1);
-    const parts = [];
-    let from = 0;
-    cuts.forEach((c, index) => {
-      const vs = verses.slice(from, c + 1);
-      parts.push(makeUnit(vs, { page: p, part: index, parts: n }));
-      from = c + 1;
-    });
-    return parts;
+    return [verses];
+  }
+
+  /**
+   * Teile einer Seite: Viertel (size 4), Hälften (2) oder die ganze Seite (1),
+   * immer aus ganzen Versen. `has` beschränkt auf einen Bereich (z. B. eine
+   * Sure). Für Seiten mit Inhalten (ghafir_teile.csv) gilt die dort
+   * festgelegte, inhaltlich sinnvolle Einteilung.
+   */
+  function pageUnits(p, size, has) {
+    const all = versesStartingOn(p);
+    const verses = has ? all.filter(has) : all;
+    if (!verses.length) return [];
+    let groups = null;
+    const c = (window.CONTENT_PARTS || {})[p];
+    if (size > 1 && c && c[size]) {
+      const own = verses.filter((v) => v.surah === c.s);
+      const ownAll = all.filter((v) => v.surah === c.s);
+      if (own.length && own.length === ownAll.length) {
+        const fixed = c[size].map(([a, b]) => own.filter((v) => v.ayah >= a && v.ayah <= b)).filter((g) => g.length);
+        // Verse anderer Suren auf derselben Seite: eigener Teil (Viertel) bzw. zum Nachbarteil
+        const before = verses.filter((v) => v.surah < c.s);
+        const after = verses.filter((v) => v.surah > c.s);
+        groups = fixed;
+        if (before.length) groups = size === 4 ? [before, ...groups] : [[...before, ...groups[0]], ...groups.slice(1)];
+        if (after.length) groups = size === 4 ? [...groups, after] : [...groups.slice(0, -1), [...groups[groups.length - 1], ...after]];
+      }
+    }
+    if (!groups) groups = size === 1 ? [verses] : splitVerses(verses, size);
+    return groups.map((vs, i) => makeUnit(vs, { page: p, part: i, parts: groups.length, kind: size }));
   }
 
   function makeUnit(verses, extra) {
@@ -160,71 +203,12 @@
     );
   }
 
-  /* ------------------------------------------------------------- Suren */
-
   /** Lädt die Seiten einer Sure (plus die Folgeseite für den Anschluss). */
   function loadSurahPages(n) {
     const m = surahs[n - 1];
     const pages = [];
     for (let p = m.p0; p <= Math.min(604, m.p1 + 1); p++) pages.push(p);
     return loadPages(pages);
-  }
-
-  /**
-   * Seitenviertel einer Seite, beschränkt auf die Verse einer Sure. Teilen
-   * sich mehrere Suren eine Seite, bleiben nur die Verse dieser Sure übrig;
-   * leere Viertel entfallen. `part` bleibt die Nummer des Seitenviertels.
-   */
-  function surahPageParts(p, n) {
-    const parts = pageParts(p);
-    if (!n) return parts;
-    const out = [];
-    for (const u of parts) {
-      const vs = u.verses.filter((v) => v.surah === n);
-      if (!vs.length) continue;
-      out.push(vs.length === u.verses.length ? u : makeUnit(vs, { page: u.page, part: u.part, parts: u.parts, surah: n }));
-    }
-    return out;
-  }
-
-  /** Einheit zu einer Auswahl { page, part, surah? }. */
-  function unitFor(ref) {
-    const parts = surahPageParts(ref.page, ref.surah);
-    return parts.find((u) => u.part === ref.part) || parts[0] || null;
-  }
-
-  /** Alle Seitenviertel einer Sure in Reihenfolge. */
-  function surahParts(n) {
-    const m = surahs[n - 1];
-    const out = [];
-    for (let p = m.p0; p <= m.p1; p++) out.push(...surahPageParts(p, n));
-    return out;
-  }
-
-  /**
-   * Tagesplan: aufeinanderfolgende Seitenviertel, bis die Tagesmenge (in
-   * Seiten) erreicht ist. Ein sehr kleiner Rest am Ende kommt zum Vortag.
-   */
-  function planDays(surahN, daily) {
-    const parts = surahParts(surahN);
-    const days = [];
-    let cur = [];
-    let acc = 0;
-    for (const part of parts) {
-      cur.push(part);
-      acc += part.size;
-      // ¼ Seite: genau ein Viertel pro Tag; sonst bis die Tagesmenge erreicht ist
-      if (daily <= 0.25 || acc >= daily - 0.125 - 1e-9) {
-        days.push(cur);
-        cur = [];
-        acc = 0;
-      }
-    }
-    if (cur.length) {
-      if (days.length && acc < daily * 0.3) days[days.length - 1].push(...cur);
-      else days.push(cur);
-    }
-    return days.map((units, index) => ({ index, units, size: units.reduce((s, u) => s + u.size, 0) }));
   }
 
   /* ------------------------------------------------------------ Einheit */
@@ -243,26 +227,43 @@
     return next ? next.ayahs[0] : null;
   }
 
+  const PAUSE_MARK = /[\u06D6-\u06DB]/;
+
   /**
-   * Anschluss: die ersten `n` Wörter des Verses nach der Einheit (samt
-   * davorstehender Zeichen wie ۞). Hat der Vers höchstens `n` Wörter, gehört
-   * er ganz dazu.
+   * Anschluss: die ersten Wörter des Verses nach der Einheit (samt
+   * davorstehender Zeichen wie ۞) – ein bis drei Wörter, die zusammen Sinn
+   * ergeben (ghafir_anschluss.csv), sonst bis zu drei Wörter, höchstens bis
+   * zum ersten Pausenzeichen. Ist der Vers so kurz, gehört er ganz dazu.
    */
-  function tailOf(unit, n = 3) {
+  function tailOf(unit) {
     const next = nextVerse(unit.verses[unit.verses.length - 1]);
     if (!next) return null;
-    const tokens = [];
-    let words = 0;
-    let complete = true;
-    for (const t of next.tokens) {
-      if (t.type === TOKEN_WORD && words === n) {
-        complete = false;
-        break;
+    const words = next.tokens.filter((t) => t.type === TOKEN_WORD);
+    let n = (window.CONTENT_TAIL || {})[next.key];
+    if (!n) {
+      n = 0;
+      for (const w of words) {
+        n++;
+        if (n >= 3 || PAUSE_MARK.test(w.text)) break;
       }
-      if (t.type === TOKEN_WORD) words++;
+    }
+    n = Math.max(1, Math.min(n, words.length));
+    const tokens = [];
+    let count = 0;
+    for (const t of next.tokens) {
+      if (t.type === TOKEN_WORD) {
+        if (count === n) break;
+        count++;
+      }
       tokens.push(t);
     }
-    return { verse: next, tokens, complete, verseWords: next.tokens.filter((t) => t.type === TOKEN_WORD).map((t) => t.text) };
+    return {
+      verse: next,
+      tokens,
+      words: tokens.filter((t) => t.type === TOKEN_WORD),
+      complete: n === words.length,
+      verseWords: words.map((t) => t.text),
+    };
   }
 
   /** Beschriftung, z. B. „Ghāfir 1–4“ oder „An-Naba’ 38 – An-Nāzi‘āt 5“. */
@@ -295,11 +296,7 @@
     linesOfPage,
     versesStartingOn,
     juzOfPage,
-    pageParts,
-    surahPageParts,
-    unitFor,
-    surahParts,
-    planDays,
+    pageUnits,
     wordsOf,
     tailOf,
     label,

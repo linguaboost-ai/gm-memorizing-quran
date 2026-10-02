@@ -1,8 +1,8 @@
 # German Method – Qur'an auswendig lernen
 
 Web-App zum Auswendiglernen des Qur'an im Layout des Madani-Mushaf (blaue
-Ausgabe), mit Rezitation, Vorbereitung über Versfragmente, schrittweisem
-Ausgrauen und sinnvoll gefüllten Pausen. Gestaltet nach dem Design-Kit
+Ausgabe), mit Rezitation, schrittweisem Ausgrauen und Übungen zum Abschnitt
+in den Pausen. Gestaltet nach dem Design-Kit
 „Quran verstehen lernen“ (`design-kit.zip`: Farben, DM Sans, weiße Karten,
 schwarze Hauptknöpfe, Richtig/Falsch mit Farbe und Symbol), das auf den
 „German Method – In-App-Käufe Screens“ beruht.
@@ -25,57 +25,70 @@ waagerecht auf die Satzbreite gestreckt bzw. gestaucht (`Mushaf.fit`). Kurze
 Schlusszeilen stehen mittig; auf den Seiten 1 und 2 folgt die Zeilenbreite dem
 Oval. Die Versende-Medaillons kommen aus der Schrift v3.0.
 
-## Der Plan
+## Startseite
 
-Ein Schritt pro Screen:
+Nur eine Auswahl – **Juz**, **Sure** (mit Versanfang und Versende; bei einer
+neuen Sure ist sie von Anfang bis Ende gewählt) oder **Seite**. Jede Zeile ist
+zunächst einzeilig und klappt erst beim Antippen auf; gilt immer die zuletzt
+gewählte. „Weiter zur Seite“ öffnet die Seitenauswahl im gewählten Bereich.
+Darunter der Link **Testen** (immer Sure Ghāfir, auch `index.html?test`).
 
-1. **Welche Sure?** Liste aller 114 Suren mit Suche (Name oder Nummer).
-2. **An welchen Tagen?** Wochentage zum Ankreuzen (Mehrfachauswahl).
-3. **Wie viel pro Tag?** ¼, ½, 1, 1½ oder 2 Seiten, mit Übersicht.
+## Seitenauswahl
 
-Gelernt wird in **Seitenvierteln**: Jede Mushaf-Seite wird in vier etwa gleich
-große Teile aus ganzen Versen geteilt (bei nur drei Versen in drei Teile);
-teilen sich mehrere Suren eine Seite, zählen nur die Verse der gewählten Sure.
-Die Tage bestehen aus so vielen Vierteln, wie es der Tagesmenge entspricht, und
-werden auf die gewählten Wochentage verteilt.
+Man blättert durch die Seiten des Bereichs (Pfeile, Pfeiltasten) und wählt
+über der Seite **Viertel – Hälfte – ganze Seite**. Beim Überfahren mit der Maus
+wird der Teil markiert (eine Farbe), ein Klick (am Handy: Antippen) startet
+sofort das Auswendiglernen.
 
-Die Startseite hat vier Tabs: **Heute** (Tagespensum), **Plan** (alle
-Lerntage), **Notizen** und **Einstellungen**.
+Die Teile sind ganze Verse und sollen sinnvolle Blöcke sein: Für Ghāfir legt
+`ghafir_teile.csv` Viertel und Hälften jeder Seite inhaltlich fest; sonst
+werden die Verse nach Wortzahl geteilt, wobei ein Teil nie mit einem sehr
+kurzen Vers (z. B. حمٓ) endet.
 
-## Zum Testen
+## Ablauf eines Teils
 
-Über „Zum Testen: freie Auswahl“ (oder `index.html?test`), je ein Screen:
-Sure → Seite → Bereich (Viertel). Die Seite wird klein dargestellt; beim
-Überfahren mit der Maus wird das jeweilige Viertel hervorgehoben. Im Testmodus lassen sich alle Schritte frei
-ansteuern, Timer können übersprungen werden.
-
-## Ablauf eines Seitenviertels
-
-1. **Auswendiglernen** – die ganze Mushaf-Seite: der Abschnitt schwarz, die
-   ersten drei Wörter des nächsten Verses blau als Anschluss, alle übrigen Wörter
-   der Seite fast unsichtbar (Deckkraft 0,05; Surenbanner, Kopfzeile und Marken
-   bleiben). „Weiter“ graut bei jedem Wort ein Fünftel der Zeichen aus
-   (Deckkraft 0,05; Buchstaben und Harakat einzeln, Shadda doppelt, abgerundet),
-   „Zurück“ holt es wieder. Nach fünf Schritten ist alles ausgegraut. Dann:
-   - **1 Minute Dhikr** (`dhikr.csv`): „Los geht's“ startet den Timer, danach
-     „Ich habe … Mal geschafft.“ → Wiederholung
-   - **2 Minuten Quiz** im „Wer wird Millionär“-Stil (`test_quiz.csv`), danach
-     „Das habe ich heute Neues gelernt.“ → Wiederholung
-   - **4 Minuten Lesetext** mit Frage (`text_quiz.txt`), danach „Das nehme ich
-     von der Geschichte mit.“ → Wiederholung
+1. **Auswendiglernen** – die ganze Mushaf-Seite: der Abschnitt schwarz, der
+   Anfang des nächsten Verses blau als Anschluss (ein bis drei Wörter, die
+   zusammen Sinn ergeben, z. B. ٱلَّذِينَ يَحۡمِلُونَ ٱلۡعَرۡشَ –
+   `ghafir_anschluss.csv`), alle übrigen Wörter der Seite fast unsichtbar
+   (Deckkraft 0,05). Endet der Teil am Seitenende, steht die Folgeseite mit
+   dem Anschluss darunter. „Weiter“ graut bei jedem Wort – auch beim Anschluss –
+   ein Fünftel der Zeichen aus, „Zurück“ holt es wieder. Dann:
+   - **1 Minute Lückentext**: Auf der leeren Seite erscheint der Abschnitt der
+     Reihe nach, Vers bzw. Versfragment (geteilt an ۘ ۚ ۖ ۗ) mit je einer Lücke.
+     Darunter die Übersetzung des Fragments und vier Wörter mit Übersetzung –
+     möglichst bekannte Wörter (`ghafir_luecken.csv`). 5–10 Lücken, verteilt
+     über den Abschnitt; am Ende ist der ganze Abschnitt zu sehen. Ist alles
+     eingesetzt, verschwindet der Text und der Timer läuft groß weiter; ist die
+     Zeit vorher um, geht es direkt zur Wiederholung.
+   - **2 Minuten Fragen** zum Abschnitt (`ghafir_fragen.csv`, dazu Wortfragen
+     aus den Lückenwörtern): Frage deutsch, Antworten arabisch, mit
+     eingeschalteter Übersetzung in Klammern. Der Abschnitt bleibt sichtbar
+     (mit oder ohne Übersetzung). Es geht weiter, bis die Zeit um ist.
+   - **4 Minuten Munāsaba**: Fragen, deren Antwort ein Vers/Fragment ist
+     (Munāsaba-Fragen aus `ghafir_munasaba.csv`), in zufälliger Reihenfolge;
+     das passende Fragment wird angetippt und bekommt rechts sein Emoji (mit
+     Übersetzung, falls eingeschaltet). Danach verschwinden die Fragmente, ihre
+     Stichpunkte mit Emoji (`ghafir_geschichte.csv`) stehen gemischt da und
+     werden in die richtige Reihenfolge gebracht, zum Schluss nur noch die
+     Emojis. 5–10 Teile (bei mehr Fragmenten werden benachbarte
+     zusammengelegt). Die Aufgabe wird zu Ende geführt, auch wenn die Zeit
+     vorher abläuft.
+   - Nach jeder Pause: **Wiederholung** aus dem Gedächtnis.
 2. **Abschluss** – freiwillige Notizen: Was kann ich in 24 Stunden, in sieben
    Tagen, in meinem Leben umsetzen?
 
-Die Vorbereitung mit Emojis, Reihenfolge und Munāsaba (1a–1c, Fragment-Ansicht;
-Code in `js/prep.js`, Inhalte aus `ghafir.csv` und `ghafir_munasaba.csv`) ist
-vorerst aus dem Ablauf genommen (`PREP_ENABLED` in `js/app.js`) und kommt später
-an anderer Stelle wieder.
+Für Suren ohne eigene Inhalte bleiben die allgemeinen Pausen: Dhikr
+(`dhikr.csv`), Quiz zur Sīra (`test_quiz.csv`) und Lesetext (`text_quiz.txt`).
+
+Die Vorbereitung mit Emojis, Reihenfolge und Munāsaba zwischen den Fragmenten
+(1a–1c, Fragment-Ansicht; Code in `js/prep.js`) ist vorerst nicht im Ablauf.
 
 Rezitation: Die Verse werden lückenlos abgespielt (Web Audio, Stille zwischen
-den Versdateien gekürzt); der Anschluss wird nach dem dritten Wort über 100 ms
+den Versdateien gekürzt); der Anschluss wird nach seinem letzten Wort über 100 ms
 ausgeblendet (das Wortende wird geschätzt).
 
-Fortschritt, laufende Timer und Notizen werden im Browser gespeichert
+Auswahl, laufende Sitzungen, Timer und Notizen werden im Browser gespeichert
 (`localStorage`).
 
 ## Lokal starten
@@ -95,9 +108,23 @@ npx serve .
 
 ## Inhalte ändern
 
-Die Inhaltsdateien im Stammverzeichnis (`dhikr.csv`, `test_quiz.csv`,
-`text_quiz.txt`, `ghafir.csv`, `ghafir_munasaba.csv`) werden in
-`data/content.js` übersetzt:
+Die Inhaltsdateien im Stammverzeichnis werden in `data/content.js` übersetzt
+(Semikolon-getrennt, erste Zeile ist die Kopfzeile):
+
+| Datei | Inhalt |
+| --- | --- |
+| `dhikr.csv`, `test_quiz.csv`, `text_quiz.txt` | allgemeine Pausen (Suren ohne eigene Inhalte) |
+| `ghafir.csv` | Fragmente je Vers mit Übersetzung (und ursprünglichem Emoji) |
+| `ghafir_munasaba.csv` | Munāsaba je Fragment: Aussage und Frage, die das nächste Fragment beantwortet |
+| `ghafir_geschichte.csv` | Stichpunkt und Emoji je Fragment (Munāsaba-Aufgabe) |
+| `ghafir_luecken.csv` | Lückenwörter je Vers: Wort wie im Vers, Übersetzung, drei falsche Wörter mit Übersetzung, Alltagsbezug |
+| `ghafir_fragen.csv` | Fragen je Vers: deutsch, richtige Antwort zuerst, je mit Übersetzung |
+| `ghafir_teile.csv` | Viertel und Hälften jeder Seite (Versbereiche, z. B. `1-3 \| 4 \| 5-6 \| 7`) |
+| `ghafir_anschluss.csv` | Anzahl der Anschlusswörter (1–3) am Anfang jedes Verses |
+
+Lückenwörter werden über ihre Schreibweise den Wörtern des Verses zugeordnet
+(`@2` = zweites Vorkommen); `npm run build:content` meldet Wörter, die nicht
+gefunden werden.
 
 `ghafir_munasaba.csv` enthält pro Fragment (Nummerierung wie in `ghafir.csv`
 innerhalb des Verses) eine Aussage und eine Frage, die das nächste Fragment
@@ -107,7 +134,7 @@ Erstellt aus `f-a_biqai-old.txt` und `ghafir_biqai.txt`.
 ```bash
 npm install
 npm run build:data      # Qur'an-Daten (nur bei Bedarf)
-npm run build:content   # Adhkar, Quiz, Texte, Fragmente, Munāsaba
+npm run build:content   # Inhalte (Adhkar, Quiz, Texte, Ghāfir)
 ```
 
 ## Aufbau
@@ -116,13 +143,14 @@ npm run build:content   # Adhkar, Quiz, Texte, Fragmente, Munāsaba
 | --- | --- |
 | `index.html` | Einstieg |
 | `css/app.css` | Design (German Method) und Madani-Mushaf |
-| `js/quran.js` | Daten, Seiten, Suren, Seitenviertel, Tagesplan |
+| `js/quran.js` | Daten, Seiten, Suren, Seitenteile, Anschluss |
 | `js/mushaf.js` | Darstellung der Mushaf-Seite (Zeilen, Ausgrauen) |
 | `js/ornaments.js` | Rahmen, Flechtband, Banner, Medaillons als SVG-Pfade |
 | `js/fade.js` | Ausgrauen in Fünfteln |
 | `js/player.js` | Rezitatoren und lückenlose Wiedergabe |
-| `js/prep.js` | Vorbereitung: Fragmente, Emojis, Auswahlrad, Munāsaba, Fragment-Ansicht |
-| `js/activities.js` | Pausen: Dhikr, Quiz, Lesetext |
+| `js/prep.js` | Fragmente; Vorbereitung (Emojis, Auswahlrad, Munāsaba) – derzeit nicht im Ablauf |
+| `js/exercises.js` | Pausen: Lückentext, Fragen, Munāsaba-Aufgabe |
+| `js/activities.js` | Allgemeine Pausen: Dhikr, Quiz, Lesetext |
 | `js/app.js` | Screens, Plan, Testmodus, Ablauf |
 | `data/` | Generierte Daten |
 | `tools/` | Skripte zum Erzeugen der Daten, `madina1405.mjs` für Seiten und Zeilen der Ausgabe 1405 |

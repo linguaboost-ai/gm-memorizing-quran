@@ -48,26 +48,33 @@
 
   const rowStyle = (b) => `left:${pct(b.x, O.PAGE_W)};width:${pct(b.w, O.PAGE_W)};top:${pct(b.y, O.PAGE_H)};height:${pct(T.pitch, O.PAGE_H)}`;
 
+  /** Zustände beim Lückentext: verborgen, Lücke (aktuell/später), gerade eingesetzt. */
+  const REVEAL_CLASS = { hide: "hid", gap: "gap now", blank: "gap", fill: "fill" };
+
   function tokenHtml(token, ctx) {
     const cls = ["t"];
     let attrs = "";
     let inner = escapeHtml(token.display || token.text);
     if (ctx.mode === "page") {
       const q = ctx.partOf.get(token.key);
-      if (q === undefined) cls.push("prev");
+      if (q === undefined) cls.push("off");
       else attrs = ` data-q="${q}"`;
     } else {
       const inUnit = ctx.keys.has(token.key);
-      if (ctx.tail.has(token)) cls.push("next");
+      const isTail = ctx.tail.has(token);
+      if (isTail) cls.push("next");
       else if (!inUnit) cls.push("rest");
       if (inUnit) {
         attrs = ` data-key="${token.key}"`;
         if (token.key === ctx.activeKey) cls.push("active");
-        if (token.type === Q.TOKEN_WORD) {
-          const i = ctx.wordIndex.get(token);
-          if (i !== undefined) inner = wordHtml(ctx.shapes[i], ctx.levels[i] || 0);
-        }
       }
+      // Abschnitt und Anschluss werden in Fünfteln ausgegraut
+      if ((inUnit || isTail) && token.type === Q.TOKEN_WORD) {
+        const i = ctx.wordIndex.get(token);
+        if (i !== undefined) inner = wordHtml(ctx.shapes[i], ctx.levels[i] || 0);
+      }
+      const r = ctx.reveal && ctx.reveal.get(token);
+      if (r) cls.push(REVEAL_CLASS[r]);
     }
     if (token.type === TOKEN_AYAH_END) cls.push("ayah-end");
     else if (token.type === TOKEN_SYMBOL) cls.push("sym");
@@ -88,9 +95,13 @@
       }
       if (l.kind === "b") {
         let cls = "t b";
-        if (ctx.mode === "page") cls += ctx.partOf.has(`${l.surah}:1`) ? "" : " prev";
-        else if (!ctx.keys.has(`${l.surah}:1`)) cls += " rest";
-        rows.push(`<div class="ml ml-basmala ml-center" style="${rowStyle(box)}"><span class="${cls}">${escapeHtml(Q.basmalaMushaf)}</span></div>`);
+        let attrs = "";
+        if (ctx.mode === "page") {
+          const q = ctx.partOf.get(`${l.surah}:1`);
+          if (q === undefined) cls += " off";
+          else attrs = ` data-q="${q}"`;
+        } else if (!ctx.keys.has(`${l.surah}:1`)) cls += " rest";
+        rows.push(`<div class="ml ml-basmala ml-center" style="${rowStyle(box)}"><span class="${cls}"${attrs}>${escapeHtml(Q.basmalaMushaf)}</span></div>`);
         continue;
       }
       // mittig: kurze Schlusszeilen einer Sure, Seiten 1–2
@@ -108,8 +119,9 @@
 
   /**
    * Lernabschnitt: die ganzen Seiten, auf denen er (und sein Anschluss) steht.
-   * @param {object} unit   Einheit (Quran.pageParts)
-   * @param {object} opts   { levels, shapes, wordIndex, activeKey, tail }
+   * @param {object} unit   Einheit (Quran.pageUnits)
+   * @param {object} opts   { levels, shapes, wordIndex, activeKey, tail,
+   *                          reveal: Map Token → "hide" | "gap" | "blank" | "fill" }
    */
   function unitHtml(unit, opts) {
     const ctx = Object.assign({ mode: "unit", keys: unit.keys, levels: [], shapes: [], wordIndex: new Map() }, opts, { tail: new Set(opts.tail || []) });
@@ -122,7 +134,7 @@
       .join("");
   }
 
-  /** Ganze Seite mit den Seitenvierteln als data-q (für die Auswahl). */
+  /** Ganze Seite mit den Teilen als data-q (für die Auswahl); übrige Wörter blass. */
   function pageHtml(page, parts) {
     const partOf = new Map();
     parts.forEach((u, i) => u.verses.forEach((v) => partOf.set(v.key, i)));
