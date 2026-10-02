@@ -55,6 +55,7 @@
           de: b.de || "",
           emoji: b.emoji || "",
           bullet: b.bullet || "",
+          sub: b.sub || null,
           mun: mun[i] || null,
         });
         start = b.end;

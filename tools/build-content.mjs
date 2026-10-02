@@ -10,6 +10,8 @@
 //                  (erstellt aus f-a_biqai-old.txt und ghafir_biqai.txt)
 //   ghafir_geschichte.csv  je Fragment ein Stichpunkt und das Emoji
 //                  (ersetzt das Emoji aus ghafir.csv)
+//   ghafir_unterteile.csv  Unterteile langer Fragmente für die Munāsaba-
+//                  Aufgabe (Wortbereich, Frage, Stichpunkt, Emoji, Übersetzung)
 //   ghafir_luecken.csv     bekannte Wörter je Vers für den Lückentext
 //                  (Wort, Übersetzung, drei falsche Wörter, Alltagsbezug)
 //   ghafir_fragen.csv      Fragen je Vers (deutsch), Antworten arabisch
@@ -209,6 +211,34 @@ if (existsSync(join(root, "ghafir_geschichte.csv"))) {
   }
 }
 
+// --- Unterteile langer Fragmente (nur für die Munāsaba-Aufgabe) ---
+let subCount = 0;
+if (existsSync(join(root, "ghafir_unterteile.csv"))) {
+  const bySub = new Map();
+  for (const [s, a, f, t, range, q, bullet, emoji, de] of parseCsv(read("ghafir_unterteile.csv")).slice(1)) {
+    if (!/^\d+$/.test(s) || !/^\d+$/.test(a) || !/^\d+$/.test(f) || !/^\d+$/.test(t)) continue;
+    const [w0, w1] = range.split("-").map(Number);
+    const key = `${+s}:${+a}:${+f}`;
+    if (!bySub.has(key)) bySub.set(key, []);
+    bySub.get(key)[+t - 1] = { w: [w0, w1 || w0], q, bullet, emoji, de };
+  }
+  for (const [key, subs] of bySub) {
+    const [s, a, f] = key.split(":").map(Number);
+    const list = fragments[`${s}:${a}`] || [];
+    const entry = list[f - 1];
+    const start = f > 1 ? list[f - 2].end + 1 : 1;
+    // Unterteile müssen das Fragment genau abdecken
+    let next = start;
+    const ok = entry && subs.length > 1 && subs.every((x) => x && x.w[0] === next && x.w[1] >= x.w[0] && (next = x.w[1] + 1)) && next === entry.end + 1;
+    if (!ok) {
+      console.warn(`Unterteile ${key}: decken das Fragment nicht genau ab`);
+      continue;
+    }
+    entry.sub = subs;
+    subCount += subs.length;
+  }
+}
+
 // Wörter (Uthmani) einer Sure je Vers, für die Zuordnung der Lückenwörter
 const PAUSE = /[\u06D6-\u06DB]/g;
 const bare = (w) => w.replace(PAUSE, "").trim();
@@ -308,4 +338,4 @@ writeFileSync(
     `window.CONTENT_TAIL=${JSON.stringify(tails)};\n`
 );
 console.log(`${dhikr.length} Adhkar, ${quiz.length} Quizfragen, ${texts.length} Texte, ${byVerse.size} Verse mit Fragmenten (${unmatched} Grenzen nur ungefähr), Munāsaba für ${munCount} Fragmente.`);
-console.log(`Ghāfir: ${bullets} Stichpunkte, ${gapCount} Lückenwörter, ${questionCount} Fragen, ${Object.keys(parts).length} Seiten mit Teilen, ${Object.keys(tails).length} Anschlüsse.`);
+console.log(`Ghāfir: ${bullets} Stichpunkte, ${subCount} Unterteile, ${gapCount} Lückenwörter, ${questionCount} Fragen, ${Object.keys(parts).length} Seiten mit Teilen, ${Object.keys(tails).length} Anschlüsse.`);

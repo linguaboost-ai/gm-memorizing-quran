@@ -45,11 +45,19 @@
     return a;
   }
 
-  /** Wortform für Antworten: ohne Dehnungs-Tatweel und Pausenzeichen. */
+  /**
+   * Wortform für Antworten: ohne Dehnungs-Tatweel und Pausenzeichen, in der
+   * Kodierung der Mushaf-Schrift (Sukun ْ, Tanwīn ً ٌ ٍ) – so sehen richtige
+   * und falsche Antworten gleich aus.
+   */
   const plain = (s) =>
     String(s || "")
-      .replace(/ـ(?![ً-ٰٟۖ-ۭ])/g, "")
-      .replace(/[ۖ-ۛ]/g, "")
+      .replace(/\u0640(?![\u064B-\u065F\u0670\u06D6-\u06ED])/g, "")
+      .replace(/[\u06D6-\u06DB]/g, "")
+      .replace(/\u06E1/g, "\u0652")
+      .replace(/\u08F0/g, "\u064B")
+      .replace(/\u08F1/g, "\u064C")
+      .replace(/\u08F2/g, "\u064D")
       .replace(/\s+/g, " ")
       .trim();
 
@@ -120,24 +128,38 @@
     }
     const vocab = gaps.map((g) => ({ q: `Welches Wort im Abschnitt bedeutet „${g.de}“?`, opts: [{ ar: g.ar, de: g.de }, ...g.wrong], vocab: true }));
 
-    return { order, fragOf, words: pos.size, gaps, quiz, vocab, units: munUnits(unit, fragments) };
+    const m = munUnits(unit, fragments);
+    return { order, fragOf, words: pos.size, gaps, quiz, vocab, fine: m.fine, units: m.units };
   }
 
   /**
-   * Teile für die Munāsaba-Aufgabe: die Fragmente, bei mehr als zehn
-   * benachbarte zusammengelegt (zuerst innerhalb eines Verses, die kürzesten
-   * zuerst). Frage = Munāsaba-Frage vor dem ersten Fragment des Teils.
+   * Teile für die Munāsaba-Aufgabe: die Fragmente – lange, wo nötig, in
+   * Unterteilen (ghafir_unterteile.csv) –, bei mehr als zehn benachbarte
+   * zusammengelegt (zuerst innerhalb eines Verses, die kürzesten zuerst).
+   * Frage = Munāsaba-Frage, die zu diesem Teil führt.
    */
   function munUnits(unit, fragments) {
     const mun = window.Prep.munasabaOf(unit, fragments);
-    if (!mun || fragments.length < 2) return [];
-    let groups = fragments.map((_, i) => [i]);
-    const size = (g) => g.reduce((a, i) => a + fragments[i].words.length, 0);
+    if (!mun) return { fine: [], units: [] };
+    const fine = [];
+    fragments.forEach((f, i) => {
+      const q0 = (mun[i] && mun[i].q) || "";
+      if (f.sub && f.sub.length > 1) {
+        const verse = unit.verses.find((v) => v.key === f.key);
+        const words = verse.tokens.filter((t) => t.type === Q.TOKEN_WORD);
+        f.sub.forEach((p, j) => {
+          fine.push({ key: f.key, words: words.slice(p.w[0] - 1, p.w[1]), end: j === f.sub.length - 1 ? f.end : null, q: p.q || (j === 0 ? q0 : ""), bullet: p.bullet || p.de, emoji: p.emoji, de: p.de });
+        });
+      } else fine.push({ key: f.key, words: f.words, end: f.end, q: q0, bullet: f.bullet || f.de, emoji: f.emoji, de: f.de });
+    });
+    if (fine.length < 2) return { fine, units: [] };
+    let groups = fine.map((_, i) => [i]);
+    const size = (g) => g.reduce((a, i) => a + fine[i].words.length, 0);
     while (groups.length > MAX_UNITS) {
       let best = 0;
       let bestCost = Infinity;
       for (let i = 0; i < groups.length - 1; i++) {
-        const sameVerse = fragments[groups[i][0]].key === fragments[groups[i + 1][0]].key;
+        const sameVerse = fine[groups[i][0]].key === fine[groups[i + 1][0]].key;
         const cost = size(groups[i]) + size(groups[i + 1]) + (sameVerse ? 0 : 1000);
         if (cost < bestCost) {
           bestCost = cost;
@@ -146,17 +168,18 @@
       }
       groups.splice(best, 2, groups[best].concat(groups[best + 1]));
     }
-    return groups.map((g) => {
-      const fs = g.map((i) => fragments[i]);
+    const units = groups.map((g) => {
+      const fs = g.map((i) => fine[i]);
       const emojis = [...new Set(fs.map((f) => f.emoji).filter(Boolean))];
       return {
-        frags: g,
-        q: (mun[g[0]] && mun[g[0]].q) || "",
+        parts: g,
+        q: fs[0].q,
         emoji: emojis.slice(0, 2).join("") || "•",
-        bullet: fs.map((f) => f.bullet || f.de).filter(Boolean).join(" – "),
+        bullet: fs.map((f) => f.bullet).filter(Boolean).join(" – "),
         de: fs.map((f) => f.de).filter(Boolean).join(" "),
       };
     });
+    return { fine, units };
   }
 
   /** Lücken auswählen: 5–10, möglichst gleichmäßig über den Abschnitt verteilt. */
@@ -363,7 +386,7 @@
     const units = st.units;
     const n = units.length;
     const timer = A.timerBar(t.done ? "Zeit um – bring die Aufgabe zu Ende" : "Munāsaba · 4 Minuten", t.left, t.total, t.done);
-    const unitAr = (u) => u.frags.map((i) => fragAr(info.fragments[i])).join(" ");
+    const unitAr = (u) => u.parts.map((i) => fragAr(st.fine[i])).join(" ");
 
     if (ex.phase === "ask") {
       const cur = units[ex.ask[ex.askPos]];
