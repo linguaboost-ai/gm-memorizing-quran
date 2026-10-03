@@ -198,5 +198,49 @@
     for (const pg of pages) pg.rows.forEach((row, i) => (row.style.transform = pg.scales[i] === 1 ? "" : `scaleX(${pg.scales[i].toFixed(4)})`));
   }
 
-  window.Mushaf = { unitHtml, pageHtml, fit };
+  /**
+   * Vorbereitung: nur die Zeilen des Abschnitts, jede genau wie auf der
+   * Mushaf-Seite gesetzt (gleiche Schrift, Abstände, Position; Wörter anderer
+   * Abschnitte unsichtbar), darunter die deutsche Übersetzung dieser Zeile.
+   * @param {object} unit   Einheit
+   * @param {Function} deOf (line) → Übersetzung der Abschnittswörter dieser Zeile
+   */
+  function linesHtml(unit, deOf) {
+    const pages = [...new Set(unit.verses.map((v) => v.page))];
+    const out = [];
+    for (const page of pages) {
+      for (const l of Q.linesOfPage(page)) {
+        const box = rowBox(page, l.line);
+        const width = `width:${((box.w / (T.right - T.left)) * 100).toFixed(2)}%`;
+        let row = "";
+        if (l.kind === "b") {
+          if (!unit.keys.has(`${l.surah}:1`)) continue;
+          row = `<div class="ml ml-basmala ml-center" style="${width}"><span class="t b">${escapeHtml(Q.basmalaMushaf)}</span></div>`;
+        } else if (l.kind === "t" && l.tokens.some((t) => unit.keys.has(t.key))) {
+          const tokens = l.tokens.map((t) => {
+            const kind = t.type === TOKEN_AYAH_END ? "ayah-end" : t.type === TOKEN_SYMBOL ? "sym" : "w";
+            return `<span class="t ${kind}${unit.keys.has(t.key) ? "" : " void"}">${escapeHtml(t.display || t.text)}</span>`;
+          });
+          row = `<div class="ml${l.info && l.info.c ? " ml-center" : ""}" style="${width}">${tokens.join("")}</div>`;
+        } else continue;
+        const de = deOf(l);
+        out.push(`<div class="pl-pair"><div class="pl-ar">${row}</div>${de ? `<p class="pl-de">${escapeHtml(de)}</p>` : ""}</div>`);
+      }
+    }
+    return `<div class="prep-lines">${out.join("")}</div>`;
+  }
+
+  /** Schrift und Streckung der Zeilen in der Vorbereitung (wie auf der Seite). */
+  function fitLines(container) {
+    const first = container.querySelector(".pl-ar");
+    if (!first || !first.clientWidth) return;
+    const size = Math.max(MIN_FONT, Math.floor(((FONT * first.clientWidth) / (T.right - T.left)) * 100) / 100);
+    container.style.setProperty("--mushaf-size", size + "px");
+    const rows = Array.from(container.querySelectorAll(".pl-ar .ml"));
+    for (const row of rows) row.style.transform = "";
+    const scales = rows.map(scaleOf);
+    rows.forEach((row, i) => (row.style.transform = scales[i] === 1 ? "" : `scaleX(${scales[i].toFixed(4)})`));
+  }
+
+  window.Mushaf = { unitHtml, pageHtml, fit, linesHtml, fitLines };
 })();

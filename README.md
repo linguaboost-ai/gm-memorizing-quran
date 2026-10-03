@@ -47,7 +47,21 @@ kurzen Vers (z. B. حمٓ) endet.
 
 ## Ablauf eines Teils
 
-1. **Auswendiglernen** – die ganze Mushaf-Seite: der Abschnitt schwarz, der
+1. **Vorbereitung** (für Abschnitte mit Inhalten, derzeit Ghāfir), je ein
+   Screen mit „Weiter“:
+   - **Lesen:** Der Abschnitt auf Arabisch wie im Mushaf (gleiche Schrift,
+     Abstände und Position, aber nur seine Zeilen und ohne die Abschnitte davor
+     und danach), unter jeder Zeile ihre deutsche Übersetzung
+     (`ghafir_zeilen.csv`). Darunter die Nacherzählung mit Schlüsselwörtern,
+     Emojis und Übergängen (`ghafir_vorbereitung.md`, Format nach Vorgabe:
+     „Was davor kam“, „Vers N“, „Wie es weitergeht“).
+   - **Schlüsselwörter ordnen:** Deutsch – Emoji – Arabisch, gemischt
+     untereinander mit Pfeilen dazwischen; die Zeilen werden sortiert (ziehen
+     oder zwei Zeilen antippen zum Tauschen, „Prüfen“ zeigt richtige Plätze).
+   - **Übersetzung zuordnen:** Die arabischen Schlüsselwörter in der
+     richtigen Reihenfolge, links je ein Platzhalter für das deutsche Wort.
+   - **Emojis ordnen:** nur die Emojis, gemischt, in die richtige Reihenfolge.
+2. **Auswendiglernen** – die ganze Mushaf-Seite: der Abschnitt schwarz, der
    Anfang des nächsten Verses blau als Anschluss (ein bis drei Wörter, die
    zusammen Sinn ergeben, z. B. ٱلَّذِينَ يَحۡمِلُونَ ٱلۡعَرۡشَ –
    `ghafir_anschluss.csv`), alle übrigen Wörter der Seite fast unsichtbar
@@ -76,14 +90,15 @@ kurzen Vers (z. B. حمٓ) endet.
      werden benachbarte zusammengelegt. Die Aufgabe wird zu Ende geführt, auch wenn die Zeit
      vorher abläuft.
    - Nach jeder Pause: **Wiederholung** aus dem Gedächtnis.
-2. **Abschluss** – freiwillige Notizen: Was kann ich in 24 Stunden, in sieben
+3. **Abschluss** – freiwillige Notizen: Was kann ich in 24 Stunden, in sieben
    Tagen, in meinem Leben umsetzen?
 
 Für Suren ohne eigene Inhalte bleiben die allgemeinen Pausen: Dhikr
 (`dhikr.csv`), Quiz zur Sīra (`test_quiz.csv`) und Lesetext (`text_quiz.txt`).
 
-Die Vorbereitung mit Emojis, Reihenfolge und Munāsaba zwischen den Fragmenten
-(1a–1c, Fragment-Ansicht; Code in `js/prep.js`) ist vorerst nicht im Ablauf.
+Die Nacherzählungen liegen je Viertel vor; lernt man eine Hälfte oder eine
+Seite, werden die Verse aneinandergereiht und an den Viertelgrenzen mit dem
+Übergang verbunden (`<!-- Übergang zu Vers N: … -->` am Ende jedes Viertels).
 
 Rezitation: Die Verse werden lückenlos abgespielt (Web Audio, Stille zwischen
 den Versdateien gekürzt); der Anschluss wird nach seinem letzten Wort über 100 ms
@@ -123,6 +138,8 @@ Die Inhaltsdateien im Stammverzeichnis werden in `data/content.js` übersetzt
 | `ghafir_fragen.csv` | Fragen je Vers: deutsch, richtige Antwort zuerst, je mit Übersetzung |
 | `ghafir_teile.csv` | Viertel und Hälften jeder Seite (Versbereiche, z. B. `1-3 \| 4 \| 5-6 \| 7`) |
 | `ghafir_anschluss.csv` | Anzahl der Anschlusswörter (1–3) am Anfang jedes Verses |
+| `ghafir_zeilen.csv` | Vorbereitung: deutsche Übersetzung je Mushaf-Zeile und Vers |
+| `ghafir_vorbereitung.md` | Vorbereitung: Nacherzählung je Viertel (`<!-- Teil 40:5-6 -->`) im vorgegebenen Markdown-Format; Schlüsselwort = `### ARABISCH EMOJI`, deutsches Wort direkt vor `(EMOJI ARABISCH)` |
 
 Lückenwörter werden über ihre Schreibweise den Wörtern des Verses zugeordnet
 (`@2` = zweites Vorkommen); `npm run build:content` meldet Wörter, die nicht
@@ -150,7 +167,7 @@ npm run build:content   # Inhalte (Adhkar, Quiz, Texte, Ghāfir)
 | `js/ornaments.js` | Rahmen, Flechtband, Banner, Medaillons als SVG-Pfade |
 | `js/fade.js` | Ausgrauen in Fünfteln |
 | `js/player.js` | Rezitatoren und lückenlose Wiedergabe |
-| `js/prep.js` | Fragmente; Vorbereitung (Emojis, Auswahlrad, Munāsaba) – derzeit nicht im Ablauf |
+| `js/prep.js` | Fragmente; Vorbereitung (Lesen, Schlüsselwörter ordnen, zuordnen, Emojis) |
 | `js/exercises.js` | Pausen: Lückentext, Fragen, Munāsaba-Aufgabe |
 | `js/activities.js` | Allgemeine Pausen: Dhikr, Quiz, Lesetext |
 | `js/app.js` | Screens, Plan, Testmodus, Ablauf |

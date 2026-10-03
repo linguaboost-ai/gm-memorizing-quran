@@ -41,8 +41,17 @@
   ];
   const sizeLabel = (k) => (SIZES.find((x) => x.k === k) || SIZES[0]).short;
 
-  const STEPS = ["learn", "pause1", "review1", "pause2", "review2", "pause3", "review3", "reflect"];
+  // Vorbereitung (nur mit Inhalten): Lesen, Schlüsselwörter ordnen, Übersetzung zuordnen, Emojis ordnen
+  const PREP_STEPS = ["read", "keys", "match", "emojis"];
+  const STEPS = [...PREP_STEPS, "learn", "pause1", "review1", "pause2", "review2", "pause3", "review3", "reflect"];
+  const isPrep = (step) => PREP_STEPS.includes(step);
+  /** Schritte dieses Teils: die Vorbereitung nur, wenn es Inhalte dafür gibt. */
+  const stepsOf = (info) => (info && info.prep ? STEPS : STEPS.filter((x) => !isPrep(x)));
   const STEP_LABEL = {
+    read: "Lesen",
+    keys: "Ordnen",
+    match: "Zuordnen",
+    emojis: "Emojis",
     learn: "Lernen",
     pause1: "1 Min",
     review1: "Wdh. 1",
@@ -53,6 +62,10 @@
     reflect: "Abschluss",
   };
   const STEP_GROUP = {
+    read: "Vorbereitung · Text und Nacherzählung",
+    keys: "Vorbereitung · Schlüsselwörter ordnen",
+    match: "Vorbereitung · Übersetzung zuordnen",
+    emojis: "Vorbereitung · Emojis ordnen",
     learn: "Auswendiglernen",
     pause1: "Pause · Lückentext",
     review1: "Wiederholung",
@@ -218,6 +231,7 @@
       tail,
       fragments,
       study: Exercises.study(unit, fragments),
+      prep: Prep.study(unit),
       label: Quran.label(unit),
     };
     unitCache.set(key, info);
@@ -227,10 +241,11 @@
   function newSession(ref, info) {
     return {
       ref,
-      step: STEPS[0],
+      step: stepsOf(info)[0],
       levels: new Array(info.words.length).fill(0),
       pauses: [{}, {}, {}],
       ex: [null, null, null],
+      prep: info.prep ? Prep.init(info.prep) : null,
       reflect: { d1: "", d7: "", life: "" },
     };
   }
@@ -238,7 +253,8 @@
   /** Passt die gespeicherte Sitzung zu diesem Teil? (sonst neu beginnen) */
   function sessionFits(s, ref, info) {
     const fits = !!s && !!s.ref && refKey(s.ref) === refKey(ref) && s.levels.length === info.words.length && Array.isArray(s.ex);
-    if (fits && !STEPS.includes(s.step)) s.step = STEPS[0];
+    if (fits && !stepsOf(info).includes(s.step)) s.step = stepsOf(info)[0];
+    if (fits && info.prep && !Prep.valid(s.prep, info.prep)) s.prep = Prep.init(info.prep);
     return fits;
   }
 
@@ -250,6 +266,7 @@
     stopTicker();
     clearLater();
     Exercises.reset();
+    Prep.reset();
     screen = Object.assign({ name }, data);
     render();
     window.scrollTo(0, 0);
@@ -544,23 +561,25 @@
 
   /** Fortschritt wie im Design-Kit: Balken über alle Schritte des Teils. */
   function progressHtml(s, info) {
-    const idx = STEPS.indexOf(s.step);
-    const pct = Math.round(((idx + 1) / STEPS.length) * 100);
+    const steps = stepsOf(info);
+    const idx = steps.indexOf(s.step);
+    const pct = Math.round(((idx + 1) / steps.length) * 100);
     const where = info.parts > 1 ? `${sizeLabel(s.ref.size)} ${info.partNo}/${info.parts}` : sizeLabel(s.ref.size);
     return `<div class="progress run"><div class="progress-bar"><span style="width:${pct}%"></span></div><span class="progress-score">${where} · S. ${s.ref.page}</span></div>`;
   }
 
   /** Kopfzeile: Schließen, Titel, Schritt. Im Testmodus mit Pfeilen und Schrittliste. */
   function sessionTopbar(s, info) {
-    const idx = STEPS.indexOf(s.step);
+    const steps = stepsOf(info);
+    const idx = steps.indexOf(s.step);
     const side =
       s.ref.mode === "test"
         ? `<span class="topbar-side nav">
             <button class="step-btn" data-action="step-jump" data-value="-1" aria-label="Vorheriger Schritt" ${idx > 0 ? "" : "disabled"}>${icon("chevronLeft")}</button>
-            <button class="count-btn" data-action="step-sheet" aria-label="Schritt wählen">${idx + 1}/${STEPS.length}</button>
-            <button class="step-btn" data-action="step-jump" data-value="1" aria-label="Nächster Schritt" ${idx < STEPS.length - 1 ? "" : "disabled"}>${icon("chevron")}</button>
+            <button class="count-btn" data-action="step-sheet" aria-label="Schritt wählen">${idx + 1}/${steps.length}</button>
+            <button class="step-btn" data-action="step-jump" data-value="1" aria-label="Nächster Schritt" ${idx < steps.length - 1 ? "" : "disabled"}>${icon("chevron")}</button>
           </span>`
-        : `<span class="topbar-side count">${idx + 1}/${STEPS.length}</span>`;
+        : `<span class="topbar-side count">${idx + 1}/${steps.length}</span>`;
     return `<header class="topbar kit">
         <button class="icon-btn" data-action="close-session" aria-label="Schließen">${icon("close")}</button>
         <span class="topbar-title">${esc(sessionTitle(s, info))}</span>
@@ -569,11 +588,12 @@
   }
 
   function openStepSheet(s) {
-    const cur = STEPS.indexOf(s.step);
+    const steps = stepsOf(sessionInfo());
+    const cur = steps.indexOf(s.step);
     openSheet(
       `<div class="sheet" role="dialog" aria-label="Schritt wählen">
         <div class="sheet-head"><div class="sheet-head-row"><h3>Schritt wählen</h3><button class="icon-btn" data-action="close-sheet" aria-label="Schließen">${icon("close")}</button></div></div>
-        <div class="sheet-list">${STEPS.map(
+        <div class="sheet-list">${steps.map(
           (st, i) => `<button class="lesson-card ${st === s.step ? "current" : ""}" data-action="goto-step" data-value="${st}">
               <span class="dot ${i < cur ? "done" : "open"}">${i < cur ? icon("check") : ""}</span>
               <span class="lesson-card-text"><span class="lesson-card-title">${STEP_LABEL[st]}</span><span class="lesson-card-sub">${STEP_GROUP[st]}</span></span>
@@ -600,7 +620,9 @@
     let body = "";
     let footer = null;
     let showPlayer = false;
-    if (s.step === "learn" || /^review/.test(s.step)) {
+    if (isPrep(s.step)) {
+      body = info.prep ? Prep.view(s.step, s.prep, info) : "";
+    } else if (s.step === "learn" || /^review/.test(s.step)) {
       body = learnBodyHtml(s, info);
       showPlayer = true;
     } else if (isPause(s)) {
@@ -699,7 +721,8 @@
     if (!ex || !Exercises.isNew(ex) || !pauseFinished(s)) return false;
     const step = s.step;
     later(() => {
-      if (currentSession() === s && s.step === step) gotoStep(s, STEPS[STEPS.indexOf(step) + 1]);
+      const steps = stepsOf(sessionInfo());
+      if (currentSession() === s && s.step === step) gotoStep(s, steps[steps.indexOf(step) + 1]);
     }, delay || 0);
     return true;
   }
@@ -747,11 +770,12 @@
   /* ---- Weiter / Zurück */
 
   function canGoBack(s) {
-    return STEPS.indexOf(s.step) > 0 || (s.step === "learn" && Math.min(...s.levels) > 0);
+    return stepsOf(sessionInfo()).indexOf(s.step) > 0 || (s.step === "learn" && Math.min(...s.levels) > 0);
   }
 
   function canGoNext(s) {
     if (s.ref.mode === "test") return true;
+    if (isPrep(s.step)) return !s.prep || Prep.isDone(s.step, s.prep);
     if (isPause(s)) return pauseFinished(s);
     return true;
   }
@@ -763,6 +787,14 @@
 
   function hintText(s) {
     switch (s.step) {
+      case "read":
+        return "Lies den Abschnitt mit der Übersetzung und die Nacherzählung. Dann „Weiter“.";
+      case "keys":
+        return s.prep && s.prep.keysOk ? "Richtig sortiert. Weiter zur Übersetzung." : "Bring die Schlüsselwörter in die Reihenfolge des Abschnitts.";
+      case "match":
+        return s.prep && s.prep.placed.every(Boolean) ? "Alles zugeordnet. Weiter zu den Emojis." : "Ordne jedem arabischen Schlüsselwort seine Übersetzung zu.";
+      case "emojis":
+        return s.prep && s.prep.emojisOk ? "Geschafft. Weiter zum Auswendiglernen." : "Bring die Emojis in die Reihenfolge des Abschnitts.";
       case "learn": {
         const f = Math.min(...s.levels);
         if (f === 0) return "Hör zu und lies mit – so oft du willst. „Weiter“ graut ein Fünftel jedes Wortes aus.";
@@ -784,6 +816,7 @@
   function gotoStep(s, step) {
     clearLater();
     Exercises.reset();
+    Prep.reset();
     s.step = step;
     if (isPause(s)) {
       const k = pauseIndex(s);
@@ -816,7 +849,8 @@
       finishTimer(s, pauseIndex(s), false); // Testmodus: überspringen
     }
     if (s.step === "reflect") return completeUnit(s);
-    gotoStep(s, STEPS[STEPS.indexOf(s.step) + 1]);
+    const steps = stepsOf(sessionInfo());
+    gotoStep(s, steps[steps.indexOf(s.step) + 1]);
   }
 
   function back() {
@@ -828,8 +862,9 @@
       render(true);
       return;
     }
-    const i = STEPS.indexOf(s.step);
-    if (i > 0) gotoStep(s, STEPS[i - 1]);
+    const steps = stepsOf(sessionInfo());
+    const i = steps.indexOf(s.step);
+    if (i > 0) gotoStep(s, steps[i - 1]);
   }
 
   function completeUnit(s) {
@@ -876,6 +911,15 @@
     if (!s || !info) return;
     const el = document.getElementById("mushaf");
     if (el) Mushaf.fit(el);
+    if (isPrep(s.step) && info.prep && s.prep) {
+      Prep.mount(document.querySelector(".screen-session main"), s.step, s.prep, {
+        save,
+        render: () => {
+          if (currentSession() === s) render(true);
+        },
+        later,
+      });
+    }
     // Lückentext: die aktuelle Lücke in die Mitte holen
     const gap = document.querySelector("#mushaf .t.gap.now, #mushaf .t.fill");
     if (gap) {
@@ -1214,8 +1258,9 @@
         return;
       case "step-jump": {
         if (!s || s.ref.mode !== "test") return;
-        const i = STEPS.indexOf(s.step) + +value;
-        if (i >= 0 && i < STEPS.length) gotoStep(s, STEPS[i]);
+        const steps = stepsOf(sessionInfo());
+        const i = steps.indexOf(s.step) + +value;
+        if (i >= 0 && i < steps.length) gotoStep(s, steps[i]);
         return;
       }
       case "step-sheet":
@@ -1224,6 +1269,9 @@
       case "ex":
         ensureAudioCtx();
         return exerciseAction(value);
+      case "prep":
+        if (s && s.prep && Prep.act(s.prep, value)) render(true);
+        return;
       // allgemeine Aktivitäten (Sure ohne eigene Inhalte)
       case "timer-start":
         if (s && isPause(s)) {

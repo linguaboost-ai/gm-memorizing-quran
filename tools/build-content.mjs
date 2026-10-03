@@ -18,6 +18,9 @@
 //                  (Antwort 1 ist richtig)
 //   ghafir_teile.csv       Viertel und Hälften jeder Seite (Verse)
 //   ghafir_anschluss.csv   Anzahl der Anschlusswörter je Versanfang
+//   ghafir_zeilen.csv      Übersetzung je Mushaf-Zeile und Vers (Vorbereitung)
+//   ghafir_vorbereitung.md Nacherzählung je Viertel mit Schlüsselwörtern,
+//                  Emojis und Übergängen (Vorbereitung)
 //
 //   npm run build:content
 //
@@ -323,6 +326,73 @@ if (existsSync(join(root, "ghafir_anschluss.csv"))) {
   }
 }
 
+// --- Übersetzung je Mushaf-Zeile: { "467:5": { "40:1": "Ḥā-Mīm.", … } } ---
+const lineDe = {};
+let lineCount = 0;
+if (existsSync(join(root, "ghafir_zeilen.csv"))) {
+  for (const [page, line, verse, , de] of parseCsv(read("ghafir_zeilen.csv")).slice(1)) {
+    if (!/^\d+$/.test(page) || !/^\d+$/.test(line) || !/^\d+:\d+$/.test(verse) || !de) continue;
+    (lineDe[`${+page}:${+line}`] = lineDe[`${+page}:${+line}`] || {})[verse] = de;
+    lineCount++;
+  }
+}
+
+// --- Vorbereitung: Nacherzählung je Viertel (Markdown im vorgegebenen Format) ---
+// Ergebnis je Vers: { blocks: [{ t: "kw", ar, emoji, de, text } | { t: "note", text }],
+//   before: „Was davor kam“, into: „Übergang zu Vers N“, after: „Wie es weitergeht“ }
+const prep = {};
+let prepParts = 0;
+let prepKeys = 0;
+if (existsSync(join(root, "ghafir_vorbereitung.md"))) {
+  const pieces = read("ghafir_vorbereitung.md").split(/<!--\s*Teil\s+(\d+):(\d+)-(\d+)\s*-->/);
+  for (let i = 1; i + 3 < pieces.length + 1; i += 4) {
+    const [s, a, b] = [+pieces[i], +pieces[i + 1], +pieces[i + 2]];
+    const body = pieces[i + 3] || "";
+    const get = (v) => (prep[`${s}:${v}`] = prep[`${s}:${v}`] || { blocks: [] });
+    let section = null;
+    let verse = null;
+    let current = null;
+    let transition = null;
+    prepParts++;
+    for (const raw of body.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line) continue;
+      let m;
+      if ((m = line.match(/^<!--\s*Übergang zu Vers (\d+):\s*(.*?)\s*-->$/))) {
+        const e = get(+m[1]);
+        if (!e.into) e.into = m[2];
+        continue;
+      }
+      if (line === "## Was davor kam") section = "before";
+      else if (line === "## Wie es weitergeht") section = "after";
+      else if ((m = line.match(/^## Vers (\d+)$/))) {
+        section = "verse";
+        verse = +m[1];
+        current = null;
+      } else if ((m = line.match(/^### (.+?)\s+(\S+)$/))) {
+        current = { t: "kw", ar: m[1].trim(), emoji: m[2], de: "", text: "" };
+        get(verse).blocks.push(current);
+        prepKeys++;
+      } else if ((m = line.match(/^>\s*\*\*Übergang zu Vers (\d+)\*\*$/))) transition = +m[1];
+      else if ((m = line.match(/^>\s*\*(.+)\*$/))) {
+        const text = m[1].trim();
+        if (transition) {
+          get(transition).into = text;
+          transition = null;
+        } else if (section === "before") get(a).before = text;
+        else if (section === "after") get(b).after = text;
+        else if (section === "verse") get(verse).blocks.push({ t: "note", text });
+      } else if ((m = line.match(/^\*\*(.+)\*\*$/)) && current) {
+        current.text = m[1].trim();
+        // deutsches Schlüsselwort: das Wort direkt vor „(EMOJI ARABISCH)“
+        const at = current.text.indexOf(`(${current.emoji} ${current.ar})`);
+        if (at > 0) current.de = current.text.slice(0, at).trim().split(/\s+/).pop().replace(/^[„‚"'(]+|[“‘"'),.;:!?]+$/g, "");
+        if (!current.de) console.warn(`Vorbereitung ${s}:${verse} „${current.ar}“: deutsches Schlüsselwort nicht gefunden`);
+      } else console.warn(`Vorbereitung ${s}:${a}-${b}: Zeile nicht erkannt: ${line.slice(0, 60)}`);
+    }
+  }
+}
+
 const header = "// Generiert von tools/build-content.mjs – nicht von Hand bearbeiten.\n";
 writeFileSync(
   join(root, "data/content.js"),
@@ -335,7 +405,9 @@ writeFileSync(
     `window.CONTENT_GAPS=${JSON.stringify(gaps)};\n` +
     `window.CONTENT_QUESTIONS=${JSON.stringify(questions)};\n` +
     `window.CONTENT_PARTS=${JSON.stringify(parts)};\n` +
-    `window.CONTENT_TAIL=${JSON.stringify(tails)};\n`
+    `window.CONTENT_TAIL=${JSON.stringify(tails)};\n` +
+    `window.CONTENT_LINES=${JSON.stringify(lineDe)};\n` +
+    `window.CONTENT_PREP=${JSON.stringify(prep)};\n`
 );
 console.log(`${dhikr.length} Adhkar, ${quiz.length} Quizfragen, ${texts.length} Texte, ${byVerse.size} Verse mit Fragmenten (${unmatched} Grenzen nur ungefähr), Munāsaba für ${munCount} Fragmente.`);
-console.log(`Ghāfir: ${bullets} Stichpunkte, ${subCount} Unterteile, ${gapCount} Lückenwörter, ${questionCount} Fragen, ${Object.keys(parts).length} Seiten mit Teilen, ${Object.keys(tails).length} Anschlüsse.`);
+console.log(`Ghāfir: ${bullets} Stichpunkte, ${subCount} Unterteile, ${gapCount} Lückenwörter, ${questionCount} Fragen, ${Object.keys(parts).length} Seiten mit Teilen, ${Object.keys(tails).length} Anschlüsse, ${lineCount} Zeilenübersetzungen, Vorbereitung: ${prepParts} Teile mit ${prepKeys} Schlüsselwörtern.`);

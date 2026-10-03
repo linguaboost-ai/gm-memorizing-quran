@@ -5157,3 +5157,335 @@ button.mun-item:hover {
   gap: 6px;
   font-size: 32px;
 }
+
+/* =====================================================================
+   Vorbereitung: Zeilen wie im Mushaf mit Übersetzung, Nacherzählung,
+   Schlüsselwörter ordnen, Übersetzung zuordnen, Emojis ordnen
+   ===================================================================== */
+
+/* Breiter als die Spalte wie die Mushaf-Seite, Zeilenbreite = Satzbreite */
+.prep-text {
+  --w: min(calc(100vw - 16px), 640px);
+  width: var(--w);
+  margin-left: calc((100% - var(--w)) / 2);
+  background: var(--mp-text-bg);
+  border: 1px solid var(--mp-blue-light);
+  border-radius: 16px;
+  padding: 10px 14px 6px;
+}
+
+.prep-lines {
+  font-family: "MadinaHafs", var(--ar);
+  font-size: var(--mushaf-size);
+  color: var(--mp-ink);
+}
+
+.pl-pair + .pl-pair {
+  border-top: 1px solid rgba(47, 104, 178, 0.12);
+}
+
+.pl-ar {
+  direction: rtl;
+  padding-top: 0.2em;
+}
+
+.prep-lines .ml {
+  position: relative;
+  height: 1.75em;
+  margin: 0 auto;
+}
+
+.prep-lines .t.void {
+  visibility: hidden;
+}
+
+.pl-de {
+  margin: 0 0 8px;
+  font-family: var(--sans);
+  font-size: 14.5px;
+  line-height: 1.4;
+  color: var(--primary-2);
+}
+
+/* Nacherzählung im Format der Vorgabe */
+.story {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 6px 16px 14px;
+  text-align: left;
+}
+
+.story h2 {
+  margin: 18px 0 6px;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.story h3 {
+  margin: 14px 0 2px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.story h3 .ar-inline {
+  font-size: 26px;
+  line-height: 1.6;
+}
+
+.story-p {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.story-note {
+  margin: 10px 0 0;
+  padding: 8px 12px;
+  border-left: 4px solid var(--lav-3);
+  background: var(--lav-2);
+  border-radius: 0 12px 12px 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--muted-2);
+}
+
+.story-note strong {
+  display: block;
+  color: var(--primary);
+  font-style: normal;
+}
+
+.ar-inline {
+  font-family: "MadinaHafs", var(--ar);
+  font-size: 1.3em;
+  font-weight: 400;
+  unicode-bidi: isolate;
+  direction: rtl;
+}
+
+/* Sortieren */
+.sortable {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.sort-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 14px;
+  border-radius: 16px;
+  border: 2px solid var(--line);
+  background: #fff;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.sort-item:hover {
+  border-color: var(--lav-3);
+}
+
+.sort-item.selected {
+  border-color: var(--primary);
+  background: var(--lav-2);
+}
+
+.sort-item.ok {
+  border-color: var(--ok-line);
+  background: var(--ok-bg);
+}
+
+.sort-item.bad {
+  border-color: var(--bad-line);
+  background: var(--bad-bg);
+}
+
+.sort-item.dragging {
+  opacity: 0.35;
+}
+
+.sort-item.drop-hover {
+  border-color: var(--primary);
+  border-style: dashed;
+}
+
+.sortable.done .sort-item {
+  cursor: default;
+}
+
+.sort-item .grip {
+  color: var(--lav-3);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.kw-de {
+  flex: 1;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.kw-emo {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.kw-ar {
+  font-family: "MadinaHafs", var(--ar);
+  font-size: 27px;
+  line-height: 1.7;
+  direction: rtl;
+  unicode-bidi: isolate;
+  color: var(--ink);
+}
+
+.sort-arrow {
+  align-self: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--lav-3);
+  line-height: 1.2;
+}
+
+/* Emojis: nebeneinander, Pfeile dazwischen */
+.sortable.sort-emojis {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+
+.sort-emojis .sort-item {
+  width: 60px;
+  height: 60px;
+  min-height: 0;
+  padding: 0;
+  justify-content: center;
+}
+
+.sort-emojis .kw-emo {
+  font-size: 32px;
+}
+
+.check-btn {
+  align-self: center;
+  padding: 10px 26px;
+}
+
+.drag-ghost.sort-ghost {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: #fff;
+  border: 2px solid var(--primary);
+}
+
+.drag-ghost.chip-ghost {
+  padding: 10px 14px;
+  background: #fff;
+  border: 2px solid var(--primary);
+  font-weight: 700;
+  width: auto !important;
+}
+
+/* Übersetzung zuordnen: Platzhalter links, arabisches Wort rechts */
+.match-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.match-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 14px 6px 8px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+
+.match-row .kw-ar {
+  margin-left: auto;
+}
+
+.match-slot {
+  flex: 0 0 48%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 12px;
+  border: 2px dashed var(--lav-3);
+  background: var(--chip);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.match-slot.armed {
+  border-color: var(--primary);
+  background: var(--lav-2);
+  cursor: pointer;
+}
+
+.match-slot.drop-hover {
+  border-color: var(--primary);
+  background: var(--lav-2);
+}
+
+.match-slot.filled {
+  border-style: solid;
+  border-color: var(--ok-line);
+  background: var(--ok-bg);
+}
+
+.match-slot.shake {
+  border-color: var(--bad-line);
+  background: var(--bad-bg);
+}
+
+.match-pool {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.match-chip {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: #fff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: grab;
+  touch-action: manipulation;
+}
+
+.match-chip.selected {
+  border-color: var(--primary);
+  background: var(--lav-2);
+}
+
+.match-chip.dragging {
+  opacity: 0.35;
+}
