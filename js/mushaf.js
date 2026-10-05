@@ -66,7 +66,10 @@
       else if (!inUnit) cls.push("rest");
       if (inUnit) {
         attrs = ` data-key="${token.key}"`;
+        if (token.w !== undefined) attrs += ` data-w="${token.w}"`;
         if (token.key === ctx.activeKey) cls.push("active");
+        // Stelle im Tresor
+        if (ctx.marked && token.w !== undefined && ctx.marked.has(`${token.key}:${token.w}`)) cls.push("vault");
       }
       // Abschnitt und Anschluss werden in Fünfteln ausgegraut
       if ((inUnit || isTail) && token.type === Q.TOKEN_WORD) {

@@ -6,23 +6,30 @@
  * Link zum Testen (immer Sure Ghāfir).
  *
  * Seitenauswahl: Blättern durch die Seiten des Bereichs; über der Seite
- * Viertel – Hälfte – ganze Seite. Die Teile werden beim Überfahren markiert,
- * ein Klick startet sofort das Auswendiglernen.
+ * Viertel – Hälfte – ganze Seite. Gerundet wird nach Größe: Füllt der Bereich
+ * eine Seite nur zu drei Vierteln (erste Seite einer Sure), gibt es drei
+ * Viertel. Die Teile werden beim Überfahren markiert, ein Klick startet sofort
+ * das Auswendiglernen.
  *
  * Ablauf pro Teil:
  *   Auswendiglernen  im Mushaf, Ausgrauen in Fünfteln (Weiter/Zurück) – auch
  *                    die Anschlusswörter des nächsten Verses
- *   Pause 1 Min      Lückentext auf der Mushaf-Seite → Wiederholung
- *   Pause 2 Min      Fragen zum Abschnitt → Wiederholung
- *   Pause 4 Min      Munāsaba: Fragmente, Stichpunkte, Emojis → Wiederholung
+ *   Pause 1 Min      Dhikr-Aufgaben (3/7/10 Mal) → Wiederholung → Ordnen 1
+ *   Pause 2 Min      Quiz zur Sīra → Wiederholung → Ordnen 2
+ *   Pause 4 Min      Lesetext mit drei Fragen → Wiederholung → Ordnen 3
+ *   Zusammenhang     die Verse mit den Übergängen nach al-Biqāʿī
  *   Abschluss        freiwillige Notizen zur Umsetzung
+ * Ordnen und Zusammenhang gibt es für Abschnitte mit Inhalten (Ghāfir).
+ *
+ * Tresor: Beim Wiederholen auf ein Wort tippen, um Wort, Fragment oder Vers
+ * für später zu sammeln (js/vault.js).
  *
  * Im Testmodus lassen sich alle Schritte frei ansteuern und Timer überspringen.
  */
 (function () {
   "use strict";
 
-  const { Quran, Fade, Mushaf, Player, Reciters, Prep, Activities, Exercises } = window;
+  const { Quran, Fade, Mushaf, Player, Reciters, Prep, Activities, Review, Vault } = window;
   const esc = Fade.escapeHtml;
 
   const STORAGE_KEY = "gm-hifz:v3";
@@ -39,40 +46,42 @@
     { k: 2, label: "Hälfte", short: "Hälfte" },
     { k: 1, label: "Ganze Seite", short: "Seite" },
   ];
-  const sizeLabel = (k) => (SIZES.find((x) => x.k === k) || SIZES[0]).short;
+  /** Bezeichnung eines Teils nach seiner gerundeten Größe (Viertel … Seite). */
+  const partName = (info) => Quran.sizeName(info.unit);
 
-  // Vorbereitung (nur mit Inhalten): Lesen, Schlüsselwörter ordnen, Übersetzung zuordnen, Emojis ordnen
-  const PREP_STEPS = ["read", "keys", "match", "emojis"];
-  const STEPS = [...PREP_STEPS, "learn", "pause1", "review1", "pause2", "review2", "pause3", "review3", "reflect"];
-  const isPrep = (step) => PREP_STEPS.includes(step);
-  /** Schritte dieses Teils: die Vorbereitung nur, wenn es Inhalte dafür gibt. */
-  const stepsOf = (info) => (info && info.prep ? STEPS : STEPS.filter((x) => !isPrep(x)));
+  // Nach jeder Wiederholung: Ordnen (nur mit Inhalten), am Ende der Zusammenhang
+  const CONTENT_STEPS = ["sort1", "sort2", "sort3", "verses"];
+  const STEPS = ["learn", "pause1", "review1", "sort1", "pause2", "review2", "sort2", "pause3", "review3", "sort3", "verses", "reflect"];
+  /** Schritte dieses Teils: Ordnen und Zusammenhang nur, wenn es Inhalte dafür gibt. */
+  const stepsOf = (info) => (info && info.keys && info.prep ? STEPS : STEPS.filter((x) => !CONTENT_STEPS.includes(x)));
+  const isSort = (step) => /^sort/.test(step);
+  const sortIndex = (step) => +step.slice(-1) - 1;
   const STEP_LABEL = {
-    read: "Lesen",
-    keys: "Ordnen",
-    match: "Zuordnen",
-    emojis: "Emojis",
     learn: "Lernen",
     pause1: "1 Min",
     review1: "Wdh. 1",
+    sort1: "Ordnen 1",
     pause2: "2 Min",
     review2: "Wdh. 2",
+    sort2: "Ordnen 2",
     pause3: "4 Min",
     review3: "Wdh. 3",
+    sort3: "Ordnen 3",
+    verses: "Zusammenhang",
     reflect: "Abschluss",
   };
   const STEP_GROUP = {
-    read: "Vorbereitung · Text und Nacherzählung",
-    keys: "Vorbereitung · Schlüsselwörter ordnen",
-    match: "Vorbereitung · Übersetzung zuordnen",
-    emojis: "Vorbereitung · Emojis ordnen",
     learn: "Auswendiglernen",
-    pause1: "Pause · Lückentext",
+    pause1: "Pause · Dhikr",
     review1: "Wiederholung",
-    pause2: "Pause · Fragen",
+    sort1: "Schlüsselwörter mit Versstück ordnen",
+    pause2: "Pause · Quiz",
     review2: "Wiederholung",
-    pause3: "Pause · Munāsaba",
+    sort2: "Schlüsselwörter ordnen",
+    pause3: "Pause · Lesetext",
     review3: "Wiederholung",
+    sort3: "Emojis ordnen",
+    verses: "Zusammenhang nach al-Biqāʿī",
     reflect: "Abschluss",
   };
 
@@ -103,6 +112,7 @@
     pick: { main: { page: 0, size: 4 }, test: { page: Quran.meta(TEST_SURAH).p0, size: 4 } },
     sessions: { main: null, test: null },
     journal: [],
+    vault: [],
   });
 
   function loadState() {
@@ -127,6 +137,7 @@
     state.prefs = Object.assign({ de: false }, state.prefs);
     state.pick = Object.assign(blankState().pick, state.pick);
     state.sessions = Object.assign({ main: null, test: null }, state.sessions);
+    if (!Array.isArray(state.vault)) state.vault = [];
     return state;
   }
 
@@ -155,7 +166,7 @@
   function rangeOf(mode, sel) {
     if (mode === "test") {
       const m = Quran.meta(TEST_SURAH);
-      return { key: "test", label: m.tr, p0: m.p0, p1: m.p1, has: (v) => v.surah === TEST_SURAH };
+      return { key: "test", label: m.tr, p0: m.p0, p1: m.p1, surah: TEST_SURAH, has: (v) => v.surah === TEST_SURAH };
     }
     if (sel.mode === "juz") {
       const j = Quran.juzList[sel.juz - 1];
@@ -215,11 +226,13 @@
     const units = Quran.pageUnits(ref.page, ref.size, range.has);
     const idx = Math.max(0, Math.min(units.length - 1, ref.part));
     const unit = units[idx];
-    const tail = Quran.tailOf(unit);
+    // Ist eine Sure gewählt, reicht der Anschluss nicht in die nächste Sure
+    const tail = Quran.tailOf(unit, !!range.surah);
     // Ausgrauen: Abschnitt und Anschluss, nach der dargestellten Form (Ausgabe 1405); Tatweel zählt nicht mit
     const words = [...Quran.wordsOf(unit), ...(tail ? tail.words : [])];
     const shapes = words.map((w) => Fade.analyze(w.display));
     const fragments = Prep.fragmentsOf(unit);
+    const prep = Prep.study(unit);
     const info = {
       ref,
       unit,
@@ -230,8 +243,8 @@
       wordIndex: new Map(words.map((w, i) => [w, i])),
       tail,
       fragments,
-      study: Exercises.study(unit, fragments),
-      prep: Prep.study(unit),
+      prep,
+      keys: prep ? Review.keysOf(unit, fragments) : null,
       label: Quran.label(unit),
     };
     unitCache.set(key, info);
@@ -245,7 +258,7 @@
       levels: new Array(info.words.length).fill(0),
       pauses: [{}, {}, {}],
       ex: [null, null, null],
-      prep: info.prep ? Prep.init(info.prep) : null,
+      sorts: [null, null, null],
       reflect: { d1: "", d7: "", life: "" },
     };
   }
@@ -253,8 +266,8 @@
   /** Passt die gespeicherte Sitzung zu diesem Teil? (sonst neu beginnen) */
   function sessionFits(s, ref, info) {
     const fits = !!s && !!s.ref && refKey(s.ref) === refKey(ref) && s.levels.length === info.words.length && Array.isArray(s.ex);
+    if (fits && !Array.isArray(s.sorts)) s.sorts = [null, null, null];
     if (fits && !stepsOf(info).includes(s.step)) s.step = stepsOf(info)[0];
-    if (fits && info.prep && !Prep.valid(s.prep, info.prep)) s.prep = Prep.init(info.prep);
     return fits;
   }
 
@@ -265,8 +278,8 @@
     if (name !== "session") releaseWakeLock();
     stopTicker();
     clearLater();
-    Exercises.reset();
-    Prep.reset();
+    const t = document.getElementById("toast");
+    if (t) t.remove();
     screen = Object.assign({ name }, data);
     render();
     window.scrollTo(0, 0);
@@ -282,6 +295,8 @@
       pick: viewPick,
       session: viewSession,
       unitDone: viewUnitDone,
+      vault: viewVault,
+      practice: viewPractice,
     };
     root.innerHTML = `<div class="screen screen-${screen.name}" ${keepScroll ? 'style="animation:none"' : ""}>${views[screen.name]()}</div>`;
     const after = { start: afterStart, pick: afterPick, session: afterSession };
@@ -393,7 +408,7 @@
           s && s.ref
             ? `<button class="card resume-card" data-action="resume">
                 <span class="label">Weiterlernen</span>
-                <strong>${esc(resume ? resume.label : `Seite ${s.ref.page}`)} · ${sizeLabel(s.ref.size)}</strong>
+                <strong>${esc(resume ? `${resume.label} · ${partName(resume)}` : `Seite ${s.ref.page}`)}</strong>
                 <span>${STEP_GROUP[s.step]} · Seite ${s.ref.page}</span>
               </button>`
             : ""
@@ -403,12 +418,24 @@
           ${selRow("surah", "Sure")}
           ${selRow("page", "Seite")}
         </div>
+        ${vaultRowHtml()}
         <div class="settings-row card"><div><small>Rezitator</small><strong>${esc(reciter.name)}</strong></div><button class="link-btn" data-action="change-reciter">Ändern</button></div>
       </main>
       <footer class="footer">
         <button class="btn" data-action="start-range">Weiter zur Seite ${icon("arrow")}</button>
         <button class="link-btn test-link" data-action="test">Testen: Sure Ghāfir</button>
       </footer>`;
+  }
+
+  /** Zeile „Tresor“ mit der Zahl der Stellen. */
+  function vaultRowHtml() {
+    const n = state.vault.length;
+    const open = state.vault.filter((x) => !Vault.solid(x)).length;
+    return `<button class="settings-row card vault-row" data-action="vault">
+        <span class="vault-row-icon" aria-hidden="true">🔒</span>
+        <div><small>Tresor</small><strong>${n ? `${n} ${n === 1 ? "Stelle" : "Stellen"}${open < n ? ` · ${open} offen` : ""}` : "noch leer"}</strong></div>
+        <span class="link-btn">Öffnen</span>
+      </button>`;
   }
 
   function afterStart() {
@@ -472,7 +499,7 @@
             <button class="icon-btn" data-action="pick-page" data-value="1" aria-label="Nächste Seite" ${pk.page < range.p1 ? "" : "disabled"}>${icon("chevron")}</button>
           </div>
         </div>
-        <p class="hinweis pick-hint">${touchOnly ? "Tippe auf einen Teil – dann geht es direkt los." : "Fahre mit der Maus über die Seite und klicke den Teil an, den du lernen willst."}</p>
+        <p class="hinweis pick-hint">${touchOnly ? "Tippe auf einen Teil – dann geht es direkt los." : "Fahre mit der Maus über die Seite und klicke den Teil an, den du lernen willst."} <span id="pick-parts"></span></p>
         <div class="mushaf full pick" id="pick-page"><div class="loading-screen">Lädt …</div></div>
       </main>`;
   }
@@ -488,6 +515,8 @@
     if (!box) return;
     box.innerHTML = Mushaf.pageHtml(page, units);
     Mushaf.fit(box);
+    const note = document.getElementById("pick-parts");
+    if (note && units.length) note.textContent = `Auf dieser Seite: ${units.map((u) => Quran.sizeName(u)).join(" · ")}`;
     let cur = null;
     const mark = (q) => {
       if (q === cur) return;
@@ -564,7 +593,7 @@
     const steps = stepsOf(info);
     const idx = steps.indexOf(s.step);
     const pct = Math.round(((idx + 1) / steps.length) * 100);
-    const where = info.parts > 1 ? `${sizeLabel(s.ref.size)} ${info.partNo}/${info.parts}` : sizeLabel(s.ref.size);
+    const where = info.parts > 1 ? `${partName(info)} · Teil ${info.partNo}/${info.parts}` : partName(info);
     return `<div class="progress run"><div class="progress-bar"><span style="width:${pct}%"></span></div><span class="progress-score">${where} · S. ${s.ref.page}</span></div>`;
   }
 
@@ -603,15 +632,27 @@
     );
   }
 
-  /** Übung der aktuellen Pause (wird bei Bedarf neu angelegt). */
-  function exerciseOf(s, info) {
+  /** Aufgabe der aktuellen Pause (wird bei Bedarf neu angelegt). */
+  function exerciseOf(s) {
     const k = pauseIndex(s);
-    if (!Exercises.valid(s.ex[k], k, info)) {
-      s.ex[k] = Exercises.init(k, info);
+    if (!Activities.valid(s.ex[k], k)) {
+      s.ex[k] = Activities.init(k);
       save();
     }
     return s.ex[k];
   }
+
+  /** Zustand von Ordnen k (wird bei Bedarf neu angelegt). */
+  function sortOf(s, info) {
+    const k = sortIndex(s.step);
+    if (!Review.sortValid(s.sorts[k], info.keys.length)) {
+      s.sorts[k] = Review.sortInit(info.keys.length);
+      save();
+    }
+    return s.sorts[k];
+  }
+
+  const vaultMarks = () => Vault.marks(state.vault);
 
   function viewSession() {
     const s = currentSession();
@@ -620,30 +661,28 @@
     let body = "";
     let footer = null;
     let showPlayer = false;
-    if (isPrep(s.step)) {
-      body = info.prep ? Prep.view(s.step, s.prep, info) : "";
-    } else if (s.step === "learn" || /^review/.test(s.step)) {
+    let wheel = "";
+    if (s.step === "learn" || /^review/.test(s.step)) {
       body = learnBodyHtml(s, info);
       showPlayer = true;
     } else if (isPause(s)) {
       const k = pauseIndex(s);
-      const ex = exerciseOf(s, info);
+      const ex = exerciseOf(s);
       const t = pauseState(s, k);
-      if (Exercises.isNew(ex)) {
-        const v = Exercises.view(ex, info, t, state.prefs);
-        body = `<div class="activity ex">${v.body}</div>`;
-        // Neue Übungen laufen von selbst weiter; im Testmodus lässt sich springen
-        footer = `${v.footer}${
-          s.ref.mode === "test"
-            ? `<div class="nav-row small"><button class="btn secondary btn-back" data-action="back">Zurück</button><button class="btn secondary" data-action="next">${t.done && Exercises.isDone(ex) ? "Weiter" : "Überspringen"}</button></div>`
-            : ""
-        }`;
-      } else if (ex.kind === "dhikr") body = Activities.dhikrHtml(ex, t);
-      else if (ex.kind === "sira") body = Activities.quizHtml(ex, t);
+      if (k === 0) body = Activities.dhikrHtml(ex, t);
+      else if (k === 1) body = Activities.quizHtml(ex, t);
       else body = Activities.textHtml(ex, t);
+    } else if (isSort(s.step) && info.keys) {
+      const st = sortOf(s, info);
+      body = Review.sortSheetHtml(sortIndex(s.step), st, info.keys);
+      wheel = Review.sortWheelHtml(sortIndex(s.step), st, info.keys);
+    } else if (s.step === "verses" && info.prep) {
+      body = Review.contextHtml(info, vaultMarks());
+      showPlayer = true;
     } else if (s.step === "reflect") body = reflectHtml(s);
     if (footer === null) {
       footer = `
+        ${wheel}
         ${showPlayer ? `<div class="player audio-card" id="player">${playerHtml()}</div><p class="player-error" id="player-error" hidden>Die Rezitation konnte nicht geladen werden. Bitte prüfe deine Internetverbindung.</p>` : ""}
         <div class="nav-row">
           <button class="btn secondary btn-back" data-action="back" ${canGoBack(s) ? "" : "disabled"}>Zurück</button>
@@ -655,7 +694,7 @@
       ${sessionTopbar(s, info)}
       ${progressHtml(s, info)}
       <main class="content">${body}</main>
-      <footer class="footer ${isPause(s) ? "ex-footer" : ""}">${footer}</footer>`;
+      <footer class="footer ${isPause(s) ? "ex-footer" : ""} ${wheel ? "wheel-footer" : ""}">${footer}</footer>`;
   }
 
   function learnBodyHtml(s, info) {
@@ -667,13 +706,16 @@
     const pages = [...new Set(info.unit.verses.map((v) => v.page))];
     return `
       <div class="section-label">${status}</div>
-      <div class="range-caption">${esc(info.label)} · Seite ${pages.join("–")}${info.tail ? `<br><span class="next-note">Blau: Anfang des nächsten Verses als Anschluss</span>` : ""}</div>
+      <div class="range-caption">${esc(info.label)} · Seite ${pages.join("–")}${info.tail ? `<br><span class="next-note">Blau: Anfang des nächsten Verses als Anschluss</span>` : ""}${review ? `<br><span class="vault-note">🔒 Vertan? Tippe auf das Wort – dann kommt es in den Tresor.</span>` : ""}</div>
+      ${review ? `<div class="peek-row"><button class="chip-btn ${screen.peek ? "on" : ""}" data-action="peek" aria-pressed="${!!screen.peek}">${screen.peek ? "Text verbergen" : "👁 Text zum Prüfen zeigen"}</button></div>` : ""}
       <div class="mushaf full" id="mushaf">${Mushaf.unitHtml(info.unit, {
-        levels: s.step === "learn" ? s.levels : s.levels.map(() => Fade.PARTS),
+        // Wiederholung: alles ausgegraut – zum Prüfen lässt sich der Text zeigen
+        levels: s.step === "learn" ? s.levels : s.levels.map(() => (screen.peek ? 0 : Fade.PARTS)),
         shapes: info.shapes,
         wordIndex: info.wordIndex,
         activeKey: player.activeKey,
         tail: info.tail ? info.tail.tokens : [],
+        marked: vaultMarks(),
       })}</div>`;
   }
 
@@ -708,17 +750,12 @@
     }
   }
 
-  /** Pause vorbei? Zeit um – und bei Lücken und Munāsaba die Aufgabe geschafft. */
-  function pauseFinished(s) {
-    const k = pauseIndex(s);
-    const ex = s.ex[k];
-    return !!s.pauses[k].done && (!ex || !Exercises.isNew(ex) || ex.kind === "quiz" || Exercises.isDone(ex) || ex.kind === "gap");
-  }
+  /** Pause vorbei? (Zeit um) */
+  const pauseFinished = (s) => !!s.pauses[pauseIndex(s)].done;
 
-  /** Neue Übungen gehen nach der Pause von selbst zur Wiederholung. */
+  /** Nach der Dhikr-Minute geht es von selbst zur Wiederholung. */
   function autoAdvance(s, delay) {
-    const ex = s.ex[pauseIndex(s)];
-    if (!ex || !Exercises.isNew(ex) || !pauseFinished(s)) return false;
+    if (pauseIndex(s) !== 0 || !pauseFinished(s)) return false;
     const step = s.step;
     later(() => {
       const steps = stepsOf(sessionInfo());
@@ -744,7 +781,7 @@
       if (left <= 0) {
         stopTicker();
         finishTimer(s, k, true);
-        if (!autoAdvance(s, 400)) render(true);
+        render(true);
       }
     };
     tick();
@@ -775,8 +812,11 @@
 
   function canGoNext(s) {
     if (s.ref.mode === "test") return true;
-    if (isPrep(s.step)) return !s.prep || Prep.isDone(s.step, s.prep);
     if (isPause(s)) return pauseFinished(s);
+    if (isSort(s.step)) {
+      const info = sessionInfo();
+      return !info || !info.keys || Review.sortDone(s.sorts[sortIndex(s.step)], info.keys.length);
+    }
     return true;
   }
 
@@ -787,14 +827,6 @@
 
   function hintText(s) {
     switch (s.step) {
-      case "read":
-        return "Lies den Abschnitt mit der Übersetzung und die Nacherzählung. Dann „Weiter“.";
-      case "keys":
-        return s.prep && s.prep.keysOk ? "Richtig sortiert. Weiter zur Übersetzung." : "Bring die Schlüsselwörter in die Reihenfolge des Abschnitts.";
-      case "match":
-        return s.prep && s.prep.placed.every(Boolean) ? "Alles zugeordnet. Weiter zu den Emojis." : "Ordne jedem arabischen Schlüsselwort seine Übersetzung zu.";
-      case "emojis":
-        return s.prep && s.prep.emojisOk ? "Geschafft. Weiter zum Auswendiglernen." : "Bring die Emojis in die Reihenfolge des Abschnitts.";
       case "learn": {
         const f = Math.min(...s.levels);
         if (f === 0) return "Hör zu und lies mit – so oft du willst. „Weiter“ graut ein Fünftel jedes Wortes aus.";
@@ -803,9 +835,20 @@
       }
       case "review1":
       case "review2":
-        return "Sag den Abschnitt aus dem Gedächtnis auf. Danach folgt die nächste Pause.";
-      case "review3":
-        return "Letzte Wiederholung. Danach kommt der Abschluss.";
+      case "review3": {
+        const steps = stepsOf(sessionInfo());
+        const nxt = steps[steps.indexOf(s.step) + 1];
+        return `Sag den Abschnitt aus dem Gedächtnis auf. Danach ${isSort(nxt) ? "ordnest du die Schlüsselwörter" : nxt === "reflect" ? "kommt der Abschluss" : "folgt die nächste Pause"}.`;
+      }
+      case "sort1":
+      case "sort2":
+      case "sort3": {
+        const info = sessionInfo();
+        if (info && info.keys && Review.sortDone(s.sorts[sortIndex(s.step)], info.keys.length)) return s.step === "sort3" ? "Geschafft. Weiter zum Zusammenhang." : "Geschafft. Weiter zur nächsten Pause.";
+        return "Wische zum gesuchten Eintrag und setze ihn ein – oder zieh ihn nach oben.";
+      }
+      case "verses":
+        return "Tippe auf ein Wort, um es in den Tresor zu legen. „Weiter“ führt zum Abschluss.";
       case "reflect":
         return "Freiwillig – „Weiter“ schließt den Abschnitt ab.";
       default:
@@ -815,9 +858,8 @@
 
   function gotoStep(s, step) {
     clearLater();
-    Exercises.reset();
-    Prep.reset();
     s.step = step;
+    screen.peek = false;
     if (isPause(s)) {
       const k = pauseIndex(s);
       // Eine schon beendete Pause beginnt beim erneuten Betreten von vorn
@@ -825,8 +867,7 @@
         s.pauses[k] = {};
         s.ex[k] = null;
       }
-      const info = sessionInfo();
-      if (info) exerciseOf(s, info);
+      exerciseOf(s);
       startTimer(s, k);
     }
     save();
@@ -881,28 +922,7 @@
     const mode = s.ref.mode;
     state.sessions[mode] = null;
     save();
-    go("unitDone", { mode, ref: s.ref, label: info.label });
-  }
-
-  /** Antworten in den Übungen. */
-  function exerciseAction(value) {
-    const s = currentSession();
-    const info = sessionInfo();
-    if (!s || !info || !isPause(s)) return;
-    const k = pauseIndex(s);
-    const ex = s.ex[k];
-    if (!ex) return;
-    const step = s.step;
-    Exercises.act(ex, info, value, {
-      save,
-      render: () => {
-        if (currentSession() === s && s.step === step) render(true);
-      },
-      later: (fn, ms, cancel) => later(() => (currentSession() === s && s.step === step ? fn() : cancel && cancel()), ms),
-      buzz: () => navigator.vibrate && navigator.vibrate(40),
-      // Aufgabe geschafft: ist die Zeit schon um, geht es weiter
-      done: () => autoAdvance(s, ex.kind === "mun" ? 1600 : 300),
-    });
+    go("unitDone", { mode, ref: s.ref, label: info.label, part: partName(info) });
   }
 
   function afterSession() {
@@ -911,22 +931,15 @@
     if (!s || !info) return;
     const el = document.getElementById("mushaf");
     if (el) Mushaf.fit(el);
-    if (isPrep(s.step) && info.prep && s.prep) {
-      Prep.mount(document.querySelector(".screen-session main"), s.step, s.prep, {
+    if (isSort(s.step) && info.keys) {
+      const step = s.step;
+      Review.mountSort(root, sortIndex(step), sortOf(s, info), info.keys, {
         save,
         render: () => {
-          if (currentSession() === s) render(true);
+          if (currentSession() === s && s.step === step) render(true);
         },
-        later,
+        buzz: () => navigator.vibrate && navigator.vibrate(40),
       });
-    }
-    // Lückentext: die aktuelle Lücke in die Mitte holen
-    const gap = document.querySelector("#mushaf .t.gap.now, #mushaf .t.fill");
-    if (gap) {
-      const r = gap.getBoundingClientRect();
-      const footer = document.querySelector(".footer");
-      const free = window.innerHeight - (footer ? footer.offsetHeight : 0);
-      if (r.top < 70 || r.bottom > free - 20) window.scrollBy({ top: r.top - free / 2, behavior: "smooth" });
     }
     if (document.getElementById("player")) {
       const verses = info.unit.verses.map((v) => ({ surah: v.surah, ayah: v.ayah }));
@@ -935,8 +948,9 @@
       if (player.signature !== sig) player.load(state.reciter, verses, tail);
       updatePlayerUi(true);
     }
+    // Nach der Dhikr-Minute kurz „Die Minute ist um“ zeigen, dann weiter
     if (isPause(s)) {
-      if (!autoAdvance(s, 300)) runPauseTicker(s);
+      if (!autoAdvance(s, 1800)) runPauseTicker(s);
     }
   }
 
@@ -947,9 +961,10 @@
       <header class="topbar kit"><span class="topbar-side"></span><span class="topbar-title">Geschafft!</span><span class="topbar-side"></span></header>
       <main class="content result">
         <div class="done-icon">${icon("check")}</div>
-        <h1 class="result-title">${esc(sizeLabel(screen.ref.size))} geschafft!</h1>
+        <h1 class="result-title">${esc(screen.part || "Teil")} geschafft!</h1>
         <p class="result-sub">Ma schā' Allāh</p>
         <div class="card score-card"><span class="label">Gelernt</span><span class="score-num">${esc(screen.label)}</span><span class="score-pct">Seite ${screen.ref.page}</span></div>
+        ${vaultRowHtml()}
       </main>
       <footer class="footer two">
         <button class="btn secondary" data-action="to-pick">Zur Seite</button>
@@ -970,6 +985,122 @@
     } else return openPick(ref.mode, ref.page);
     if (ref.mode === "main" && ref.sel) state.sel = Object.assign({}, ref.sel);
     startUnit(ref.mode, page, ref.size, part, true);
+  }
+
+  /* ----------------------------------------------------------------- Tresor */
+
+  /** Tresor öffnen: Suren der Stellen laden, dann die Liste zeigen. */
+  async function openVault() {
+    // Zurück führt zum Abschluss eines Teils bzw. zur Startseite
+    const back = screen.name === "unitDone" ? Object.assign({}, screen) : screen.name === "vault" || screen.name === "practice" ? screen.back : null;
+    await Promise.all([...new Set(state.vault.map((x) => x.s))].map((n) => Quran.load(n)));
+    go("vault", { back });
+  }
+
+  function viewVault() {
+    const n = state.vault.length;
+    const open = state.vault.filter((x) => !Vault.solid(x)).length;
+    return `
+      <header class="topbar kit">
+        <button class="icon-btn" data-action="vault-back" aria-label="Zurück">${icon("back")}</button>
+        <span class="topbar-title">Tresor</span>
+        <span class="topbar-side count">${n || ""}</span>
+      </header>
+      <main class="content vault-page">
+        ${heading("Tresor · <span class=\"multi\">schwierige Stellen</span>", "Wo vertust du dich immer wieder?", n ? "Die Stellen mit den meisten Fehlern stehen oben. Üben: Die Stelle ist verdeckt – sag sie auf, deck sie auf und sag ehrlich, ob du sie wusstest." : "")}
+        <div class="vault-list">${Vault.listHtml(state.vault, screen.playing)}</div>
+      </main>
+      ${n ? `<footer class="footer"><button class="btn" data-action="vault-practice">Alle üben (${open || n})</button></footer>` : ""}`;
+  }
+
+  /** Üben: offene Stellen (sonst alle), die schwierigsten zuerst – oder nur eine. */
+  function startPractice(id) {
+    const list = Vault.sorted(state.vault);
+    const open = list.filter((x) => !Vault.solid(x));
+    const queue = id ? [id] : (open.length ? open : list).map((x) => x.id);
+    if (!queue.length) return;
+    player.stop();
+    go("practice", { queue, pos: 0, revealed: false, known: 0, back: screen.back });
+  }
+
+  function viewPractice() {
+    const { queue, pos } = screen;
+    const it = state.vault.find((x) => x.id === queue[pos]);
+    let body;
+    let footer;
+    if (!it) {
+      body = `<div class="result"><div class="done-icon">${icon("check")}</div>
+          <h1 class="result-title">Geübt!</h1>
+          <p class="result-sub">${screen.known} von ${queue.length} gewusst</p></div>`;
+      footer = `<button class="btn" data-action="vault">Zurück zum Tresor</button>`;
+    } else {
+      body = Vault.practiceHtml(it, screen.revealed, pos, queue.length);
+      const playing = screen.playing === it.id;
+      footer = screen.revealed
+        ? `<div class="nav-row"><button class="btn bad-btn" data-action="practice-grade" data-value="0">✕ Wieder Fehler</button><button class="btn ok-btn" data-action="practice-grade" data-value="1">✓ Gewusst</button></div>
+           <button class="link-btn" data-action="vault-play" data-value="${it.id}">${playing ? "❚❚ Stopp" : "▶ Vers anhören"}</button>`
+        : `<button class="btn" data-action="practice-reveal">Aufdecken</button>
+           <button class="link-btn" data-action="vault-play" data-value="${it.id}">${playing ? "❚❚ Stopp" : "▶ Vers anhören"}</button>`;
+    }
+    return `
+      <header class="topbar kit">
+        <button class="icon-btn" data-action="vault" aria-label="Zum Tresor">${icon("close")}</button>
+        <span class="topbar-title">Tresor üben</span>
+        <span class="topbar-side count">${Math.min(pos + 1, queue.length)}/${queue.length}</span>
+      </header>
+      <main class="content">${body}</main>
+      <footer class="footer">${footer}</footer>`;
+  }
+
+  /** Vers einer Stelle anhören (noch einmal: Stopp). */
+  function vaultPlay(id) {
+    const it = state.vault.find((x) => x.id === id);
+    if (!it) return;
+    ensureAudioCtx();
+    if (screen.playing === id && (player.status === "playing" || player.status === "loading")) {
+      player.stop();
+      screen.playing = null;
+    } else {
+      screen.playing = id;
+      player.preview(state.reciter, it.s, it.a);
+    }
+    render(true);
+  }
+
+  /** Blatt „In den Tresor“ nach dem Antippen eines Wortes. */
+  function openVaultSheet(key, w) {
+    const info = sessionInfo();
+    const [sNo, aNo] = key.split(":").map(Number);
+    const verse = Quran.verse(sNo, aNo);
+    if (!info || !verse) return;
+    const f = info.fragments.find((x) => x.key === key && x.words.length && x.words[0].w <= w && w <= x.words[x.words.length - 1].w);
+    openSheet(Vault.sheetHtml({ list: state.vault, verse, w, frag: f ? [f.words[0].w, f.words[f.words.length - 1].w] : null, canPlay: !!document.getElementById("player") }));
+  }
+
+  function vaultAdd(value) {
+    const sheet = document.querySelector(".vault-sheet");
+    const key = sheet && sheet.dataset.key;
+    if (!key) return;
+    const [kind, w0, w1] = value.split(":");
+    const [sNo, aNo] = key.split(":").map(Number);
+    const it = Vault.add(state.vault, sNo, aNo, +w0, +w1, kind);
+    save();
+    closeSheet();
+    render(true);
+    toast(`🔒 ${Vault.KIND[kind]} im Tresor${it.n > 1 ? ` · ${it.n}× Fehler` : ""}`);
+  }
+
+  function toast(text) {
+    const old = document.getElementById("toast");
+    if (old) old.remove();
+    const el = document.createElement("div");
+    el.id = "toast";
+    el.className = "toast";
+    el.setAttribute("role", "status");
+    el.textContent = text;
+    document.body.appendChild(el);
+    setTimeout(() => el.classList.add("out"), 1800);
+    setTimeout(() => el.remove(), 2300);
   }
 
   /* ----------------------------------------------------------------- Player */
@@ -1027,13 +1158,17 @@
     const active = player.activeKey;
     if (active !== lastActive || force) {
       lastActive = active;
-      document.querySelectorAll("#mushaf .t[data-key]").forEach((t) => t.classList.toggle("active", t.dataset.key === active));
+      document.querySelectorAll("#mushaf .t[data-key], #ctx .t[data-key]").forEach((t) => t.classList.toggle("active", t.dataset.key === active));
     }
   }
 
   let sheetPreview = null;
   function onPlayerChange(p, kind) {
     if (screen.name === "session") updatePlayerUi();
+    if ((screen.name === "vault" || screen.name === "practice") && kind === "status" && screen.playing && (p.status === "ended" || p.status === "error" || p.status === "idle")) {
+      screen.playing = null;
+      render(true);
+    }
     if (kind === "status") {
       const list = document.querySelector(".sheet .reciters");
       if (list) list.innerHTML = recitersHtml(state.reciter, sheetPreview);
@@ -1249,6 +1384,9 @@
         if (value === "de") state.prefs.de = !state.prefs.de;
         save();
         return render(true);
+      case "peek":
+        screen.peek = !screen.peek;
+        return render(true);
       case "next":
         return next();
       case "back":
@@ -1266,13 +1404,16 @@
       case "step-sheet":
         if (s) openStepSheet(s);
         return;
-      case "ex":
-        ensureAudioCtx();
-        return exerciseAction(value);
-      case "prep":
-        if (s && s.prep && Prep.act(s.prep, value)) render(true);
+      // Pausen
+      case "dhikr-tap":
+      case "dhikr-done":
+        if (s && isPause(s) && pauseIndex(s) === 0 && !pauseFinished(s)) {
+          if (navigator.vibrate) navigator.vibrate(action === "dhikr-tap" ? 8 : 20);
+          Activities.dhikrAct(s.ex[0], action === "dhikr-tap" ? "tap" : "done");
+          save();
+          render(true);
+        }
         return;
-      // allgemeine Aktivitäten (Sure ohne eigene Inhalte)
       case "timer-start":
         if (s && isPause(s)) {
           ensureAudioCtx();
@@ -1294,13 +1435,62 @@
         s.ex[1].pos++;
         save();
         return render(true);
-      case "text-answer":
-        if (s.ex[2].choice === null) {
-          s.ex[2].choice = +value;
+      case "text-answer": {
+        const [qi, i] = value.split(":").map(Number);
+        const a = s && s.ex[2];
+        if (a && a.choices[qi] === null) {
+          a.choices[qi] = i;
           save();
           render(true);
         }
         return;
+      }
+      // Tresor
+      case "vault":
+        return openVault();
+      case "vault-back":
+        player.stop();
+        if (screen.back && screen.back.name === "unitDone") return go("unitDone", screen.back);
+        return go("start");
+      case "vault-add":
+        return vaultAdd(value);
+      case "vault-listen":
+        closeSheet();
+        ensureAudioCtx();
+        return player.playFromKey(value);
+      case "vault-play":
+        return vaultPlay(value);
+      case "vault-practice":
+        return startPractice(value);
+      case "vault-remove": {
+        state.vault = state.vault.filter((x) => x.id !== value);
+        save();
+        render(true);
+        return toast("Aus dem Tresor genommen");
+      }
+      case "practice-reveal":
+        screen.revealed = true;
+        return render(true);
+      case "practice-grade": {
+        const it = state.vault.find((x) => x.id === screen.queue[screen.pos]);
+        if (it) {
+          if (+value) {
+            it.ok = (it.ok || 0) + 1;
+            screen.known++;
+          } else {
+            it.n++;
+            it.ok = 0;
+          }
+          it.last = Date.now();
+          save();
+        }
+        player.stop();
+        screen.playing = null;
+        screen.pos++;
+        screen.revealed = false;
+        render();
+        return window.scrollTo(0, 0);
+      }
       // Rezitation
       case "play":
         ensureAudioCtx();
@@ -1329,10 +1519,13 @@
       handleAction(el.dataset.action, el.dataset.value, el, e);
       return;
     }
-    // Tippen auf einen Vers spielt ab diesem Vers
-    const tok = e.target.closest("#mushaf .t[data-key]");
+    // Tippen auf ein Wort: beim Lernen ab diesem Vers abspielen,
+    // beim Wiederholen und im Zusammenhang in den Tresor legen
+    const tok = e.target.closest("#mushaf .t[data-key], #ctx .t[data-key]");
     const s = currentSession();
-    if (tok && s && !isPause(s)) {
+    if (!tok || !s) return;
+    if ((/^review/.test(s.step) || s.step === "verses") && tok.dataset.w !== undefined) return openVaultSheet(tok.dataset.key, +tok.dataset.w);
+    if (s.step === "learn") {
       ensureAudioCtx();
       player.playFromKey(tok.dataset.key);
     }

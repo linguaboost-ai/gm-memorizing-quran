@@ -1,8 +1,8 @@
 # German Method – Qur'an auswendig lernen
 
 Web-App zum Auswendiglernen des Qur'an im Layout des Madani-Mushaf (blaue
-Ausgabe), mit Rezitation, schrittweisem Ausgrauen und Übungen zum Abschnitt
-in den Pausen. Gestaltet nach dem Design-Kit
+Ausgabe), mit Rezitation, schrittweisem Ausgrauen, Pausen-Aufgaben,
+Ordnen der Schlüsselwörter und einem Tresor für schwierige Stellen. Gestaltet nach dem Design-Kit
 „Quran verstehen lernen“ (`design-kit.zip`: Farben, DM Sans, weiße Karten,
 schwarze Hauptknöpfe, Richtig/Falsch mit Farbe und Symbol), das auf den
 „German Method – In-App-Käufe Screens“ beruht.
@@ -38,74 +38,86 @@ Darunter der Link **Testen** (immer Sure Ghāfir, auch `index.html?test`).
 Man blättert durch die Seiten des Bereichs (Pfeile, Pfeiltasten) und wählt
 über der Seite **Viertel – Hälfte – ganze Seite**. Beim Überfahren mit der Maus
 wird der Teil markiert (eine Farbe), ein Klick (am Handy: Antippen) startet
-sofort das Auswendiglernen.
+sofort das Auswendiglernen – ohne Vorbereitung. Über der Seite steht, welche
+Teile sie hat (z. B. „Viertel · Viertel · Viertel“).
+
+Damit die Einteilung glatt aufgeht, wird gerundet: Die Zahl der Teile ergibt
+sich aus dem Anteil der Seite, den der Bereich füllt (Kopfzeile und Basmala
+zählen mit). Unter 37,5 % ist es ein Viertel, bis 62,5 % eine Hälfte, darüber
+drei Viertel, ab 87,5 % eine ganze Seite. Die erste Seite von Ghāfir füllt
+die Sure nur zu drei Vierteln – sie hat deshalb drei Viertel, zwei Hälften
+oder als „ganze Seite“ ein Dreiviertel. Ist eine Sure gewählt, enthält kein
+Teil ein Stück der nächsten Sure, und der Anschluss endet am Ende der Sure.
 
 Die Teile sind ganze Verse und sollen sinnvolle Blöcke sein: Für Ghāfir legt
-`ghafir_teile.csv` Viertel und Hälften jeder Seite inhaltlich fest; sonst
-werden die Verse nach Wortzahl geteilt, wobei ein Teil nie mit einem sehr
-kurzen Vers (z. B. حمٓ) endet.
+`ghafir_teile.csv` Viertel und Hälften jeder Seite inhaltlich fest (wenn die
+Zahl der Teile passt); sonst werden die Verse nach Wortzahl geteilt, wobei ein
+Teil nie mit einem sehr kurzen Vers (z. B. حمٓ) endet.
 
 ## Ablauf eines Teils
 
-1. **Vorbereitung** (für Abschnitte mit Inhalten, derzeit Ghāfir), je ein
-   Screen mit „Weiter“:
-   - **Lesen:** Der Abschnitt auf Arabisch wie im Mushaf (gleiche Schrift,
-     Abstände und Position, aber nur seine Zeilen und ohne die Abschnitte davor
-     und danach), unter jeder Zeile ihre deutsche Übersetzung
-     (`ghafir_zeilen.csv`). Darunter die Nacherzählung mit Schlüsselwörtern,
-     Emojis und Übergängen (`ghafir_vorbereitung.md`, Format nach Vorgabe:
-     „Was davor kam“, „Vers N“, „Wie es weitergeht“).
-   - **Schlüsselwörter ordnen:** Deutsch – Emoji – Arabisch, gemischt
-     untereinander mit Pfeilen dazwischen; die Zeilen werden sortiert (ziehen
-     oder zwei Zeilen antippen zum Tauschen, „Prüfen“ zeigt richtige Plätze).
-   - **Übersetzung zuordnen:** Die arabischen Schlüsselwörter in der
-     richtigen Reihenfolge, links je ein Platzhalter für das deutsche Wort.
-   - **Emojis ordnen:** nur die Emojis, gemischt, in die richtige Reihenfolge.
-2. **Auswendiglernen** – die ganze Mushaf-Seite: der Abschnitt schwarz, der
+1. **Auswendiglernen** – die ganze Mushaf-Seite: der Abschnitt schwarz, der
    Anfang des nächsten Verses blau als Anschluss (ein bis drei Wörter, die
    zusammen Sinn ergeben, z. B. ٱلَّذِينَ يَحۡمِلُونَ ٱلۡعَرۡشَ –
    `ghafir_anschluss.csv`), alle übrigen Wörter der Seite fast unsichtbar
    (Deckkraft 0,05). Endet der Teil am Seitenende, steht die Folgeseite mit
    dem Anschluss darunter. „Weiter“ graut bei jedem Wort – auch beim Anschluss –
-   ein Fünftel der Zeichen aus, „Zurück“ holt es wieder. Dann:
-   - **1 Minute Lückentext**: Auf der leeren Seite erscheint der Abschnitt der
-     Reihe nach, Vers bzw. Versfragment (geteilt an ۘ ۚ ۖ ۗ) mit je einer Lücke.
-     Darunter die Übersetzung des Fragments und vier Wörter mit Übersetzung –
-     möglichst bekannte Wörter (`ghafir_luecken.csv`). 5–10 Lücken, verteilt
-     über den Abschnitt; am Ende ist der ganze Abschnitt zu sehen. Ist alles
-     eingesetzt, verschwindet der Text und der Timer läuft groß weiter; ist die
-     Zeit vorher um, geht es direkt zur Wiederholung.
-   - **2 Minuten Fragen** zum Abschnitt (`ghafir_fragen.csv`, dazu Wortfragen
-     aus den Lückenwörtern): Frage deutsch, Antworten arabisch, mit
-     eingeschalteter Übersetzung in Klammern. Der Abschnitt bleibt sichtbar
-     (mit oder ohne Übersetzung). Es geht weiter, bis die Zeit um ist.
-   - **4 Minuten Munāsaba**: Fragen, deren Antwort ein Vers/Fragment ist
-     (Munāsaba-Fragen aus `ghafir_munasaba.csv`), in zufälliger Reihenfolge;
-     das passende Fragment wird angetippt und bekommt rechts sein Emoji (mit
-     Übersetzung, falls eingeschaltet). Danach verschwinden die Fragmente, ihre
-     Stichpunkte mit Emoji (`ghafir_geschichte.csv`) stehen gemischt da und
-     werden in die richtige Reihenfolge gebracht, zum Schluss nur noch die
-     Emojis. 5–10 Teile: In kurzen Abschnitten werden lange Fragmente in
-     sinnvolle Unterteile geteilt (`ghafir_unterteile.csv`), bei mehr als zehn
-     werden benachbarte zusammengelegt. Die Aufgabe wird zu Ende geführt, auch wenn die Zeit
-     vorher abläuft.
-   - Nach jeder Pause: **Wiederholung** aus dem Gedächtnis.
-3. **Abschluss** – freiwillige Notizen: Was kann ich in 24 Stunden, in sieben
+   ein Fünftel der Zeichen aus, „Zurück“ holt es wieder.
+2. **Nachbereitung** – drei Runden aus Pause, Wiederholung und Ordnen:
+   - **1 Minute Dhikr:** zufällige Adhkar aus `dhikr.csv` als Aufgabe mit
+     Anzahl – lange 3 Mal, mittlere 7 Mal, kurze 10 Mal (z. B. die Salawat
+     10 Mal). Mitzählen per Antippen oder direkt „… Mal gemacht“ bestätigen,
+     dann kommt der nächste, bis die Minute um ist. Danach geht es von selbst
+     zur **Wiederholung** aus dem Gedächtnis, dann zu **Ordnen 1**: die
+     Schlüsselwörter als „Deutsch EMOJI Arabisch“, darunter ihr Versstück.
+   - **2 Minuten Quiz** zur Sīra („Wer wird Millionär“, `test_quiz.csv`) →
+     Wiederholung → **Ordnen 2**: „Deutsch EMOJI Arabisch“ ohne Versstück.
+   - **4 Minuten Lesetext** mit drei Fragen (`text_quiz.txt`) → Wiederholung →
+     **Ordnen 3**: nur die Emojis.
+   - Ordnen geht von oben nach unten: Unten ist ein Auswahlrad (weiches
+     Scrollfenster: wischen, Mausrad, Pfeile), der mittlere Eintrag wird mit
+     „Einsetzen“ oder durch Hochziehen in die gesuchte Zeile gesetzt. Falsche
+     Einträge springen zurück – eine falsche Reihenfolge ist nicht möglich.
+3. **Zusammenhang** – die Verse Fragment für Fragment (arabisch, Übersetzung,
+   Schlüsselwörter) mit den Übergängen nach al-Biqāʿī: was davor kam, zwischen
+   den Versen, innerhalb eines Verses (hinter dem passenden Fragment) und wie es
+   weitergeht (`ghafir_vorbereitung.md`).
+4. **Abschluss** – freiwillige Notizen: Was kann ich in 24 Stunden, in sieben
    Tagen, in meinem Leben umsetzen?
 
-Für Suren ohne eigene Inhalte bleiben die allgemeinen Pausen: Dhikr
-(`dhikr.csv`), Quiz zur Sīra (`test_quiz.csv`) und Lesetext (`text_quiz.txt`).
+Ordnen und Zusammenhang gibt es für Abschnitte mit Inhalten (derzeit Ghāfir);
+bei anderen Suren folgen auf die Pausen nur die Wiederholungen.
 
-Die Nacherzählungen liegen je Viertel vor; lernt man eine Hälfte oder eine
-Seite, werden die Verse aneinandergereiht und an den Viertelgrenzen mit dem
-Übergang verbunden (`<!-- Übergang zu Vers N: … -->` am Ende jedes Viertels).
+Die Schlüsselwörter stammen aus `ghafir_vorbereitung.md` (meist fünf je
+Viertel). Ihr Versstück reicht vom Anfang des Fragments, in dem sie stehen
+(beim ersten Schlüsselwort eines Verses vom Versanfang), bis vor das Stück des
+nächsten Schlüsselworts; das letzte endet mit dem Vers.
+
+## Tresor
+
+Passiert beim Wiederholen ein Fehler, tippt man auf das Wort (mit „Text zum
+Prüfen zeigen“ lässt sich der ausgegraute Text dafür einblenden; auch im
+Zusammenhang sind die Wörter antippbar). Ein Blatt bietet an: **Wort**,
+**Fragment** (bis zum Pausenzeichen) oder **ganzer Vers** in den Tresor – oder
+ab diesem Vers anhören. Kommt dieselbe Stelle wieder hinein, zählt der Tresor
+einen Fehler mehr. Stellen im Tresor sind im Mushaf rot unterlegt.
+
+Der Tresor (Startseite und nach jedem Teil) listet die Stellen, die mit den
+meisten Fehlern zuerst: anhören, üben, „Sitzt – entfernen“. Beim **Üben** steht
+der Anfang des Verses (bzw. das Ende des vorigen) da, die Stelle ist verdeckt:
+aufsagen, aufdecken, dann „Gewusst“ oder „Wieder Fehler“. Nach drei Mal
+„Gewusst“ in Folge gilt eine Stelle als sitzend und rückt nach unten.
+
+Die frühere Vorbereitung (Lesen, Zuordnen) und die Ghāfir-Pausen (Lückentext,
+Fragen zum Abschnitt, Munāsaba-Aufgabe) sind nicht mehr im Ablauf; ihr Code
+(`js/prep.js`, `js/exercises.js`) und ihre Inhalte bleiben erhalten.
 
 Rezitation: Die Verse werden lückenlos abgespielt (Web Audio, Stille zwischen
 den Versdateien gekürzt); der Anschluss wird nach seinem letzten Wort über 100 ms
 ausgeblendet (das Wortende wird geschätzt).
 
-Auswahl, laufende Sitzungen, Timer und Notizen werden im Browser gespeichert
-(`localStorage`).
+Auswahl, laufende Sitzungen, Timer, Notizen und der Tresor werden im Browser
+gespeichert (`localStorage`).
 
 ## Lokal starten
 
@@ -129,7 +141,9 @@ Die Inhaltsdateien im Stammverzeichnis werden in `data/content.js` übersetzt
 
 | Datei | Inhalt |
 | --- | --- |
-| `dhikr.csv`, `test_quiz.csv`, `text_quiz.txt` | allgemeine Pausen (Suren ohne eigene Inhalte) |
+| `dhikr.csv` | Adhkar für die 1-Minuten-Pause (Anzahl 3/7/10 nach Länge des arabischen Textes) |
+| `test_quiz.csv` | Quiz zur Sīra (2 Minuten, Antwort 1 ist richtig) |
+| `text_quiz.txt` | Lesetexte mit je drei Fragen (`Frage 1:` … `Frage 3:`, Antworten A–C mit `(Richtig)`) |
 | `ghafir.csv` | Fragmente je Vers mit Übersetzung (und ursprünglichem Emoji) |
 | `ghafir_munasaba.csv` | Munāsaba je Fragment: Aussage und Frage, die das nächste Fragment beantwortet |
 | `ghafir_geschichte.csv` | Stichpunkt und Emoji je Fragment (Munāsaba-Aufgabe) |
@@ -139,7 +153,7 @@ Die Inhaltsdateien im Stammverzeichnis werden in `data/content.js` übersetzt
 | `ghafir_teile.csv` | Viertel und Hälften jeder Seite (Versbereiche, z. B. `1-3 \| 4 \| 5-6 \| 7`) |
 | `ghafir_anschluss.csv` | Anzahl der Anschlusswörter (1–3) am Anfang jedes Verses |
 | `ghafir_zeilen.csv` | Vorbereitung: deutsche Übersetzung je Mushaf-Zeile und Vers |
-| `ghafir_vorbereitung.md` | Vorbereitung: Nacherzählung je Viertel (`<!-- Teil 40:5-6 -->`) im vorgegebenen Markdown-Format; Schlüsselwort = `### ARABISCH EMOJI`, deutsches Wort direkt vor `(EMOJI ARABISCH)` |
+| `ghafir_vorbereitung.md` | Schlüsselwörter (Ordnen) und Übergänge nach al-Biqāʿī (Zusammenhang), je Viertel (`<!-- Teil 40:5-6 -->`); Schlüsselwort = `### ARABISCH EMOJI`, deutsches Wort direkt vor `(EMOJI ARABISCH)` |
 
 Lückenwörter werden über ihre Schreibweise den Wörtern des Verses zugeordnet
 (`@2` = zweites Vorkommen); `npm run build:content` meldet Wörter, die nicht
@@ -167,10 +181,12 @@ npm run build:content   # Inhalte (Adhkar, Quiz, Texte, Ghāfir)
 | `js/ornaments.js` | Rahmen, Flechtband, Banner, Medaillons als SVG-Pfade |
 | `js/fade.js` | Ausgrauen in Fünfteln |
 | `js/player.js` | Rezitatoren und lückenlose Wiedergabe |
-| `js/prep.js` | Fragmente; Vorbereitung (Lesen, Schlüsselwörter ordnen, zuordnen, Emojis) |
-| `js/exercises.js` | Pausen: Lückentext, Fragen, Munāsaba-Aufgabe |
-| `js/activities.js` | Allgemeine Pausen: Dhikr, Quiz, Lesetext |
-| `js/app.js` | Screens, Plan, Testmodus, Ablauf |
+| `js/prep.js` | Fragmente, Ziehen & Ablegen, Inhalte der Nacherzählung (die Vorbereitungs-Screens sind nicht mehr im Ablauf) |
+| `js/activities.js` | Pausen: Dhikr-Aufgaben, Quiz, Lesetext mit drei Fragen |
+| `js/review.js` | Ordnen mit Auswahlrad, Zusammenhang nach al-Biqāʿī |
+| `js/vault.js` | Tresor: Stellen sammeln, Liste, Üben |
+| `js/exercises.js` | frühere Ghāfir-Pausen (Lückentext, Fragen, Munāsaba-Aufgabe) – derzeit nicht eingebunden |
+| `js/app.js` | Screens, Testmodus, Ablauf |
 | `data/` | Generierte Daten |
 | `tools/` | Skripte zum Erzeugen der Daten, `madina1405.mjs` für Seiten und Zeilen der Ausgabe 1405 |
 | `fonts/KFGQPC-HAFS-Uthmanic-v1.001.woff2` | Mushaf-Schrift: KFGQPC HAFS Uthmanic Script v1.001 (Lizenz: `fonts/WAQF-LICENSE-Hafs-v1.001.md`) |

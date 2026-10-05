@@ -74,6 +74,8 @@
           if (!v) v = surah.ayahs[ayah - 1] = { surah: raw.n, ayah, key: token.key, data: surah, tokens: [], start: token.start, page };
           v.tokens.push(token);
           v.end = token.end;
+          // Wortnummer im Vers (0-basiert), z. B. für den Tresor
+          if (type === TOKEN_WORD) token.w = (v.wc = (v.wc || 0) + 1) - 1;
         });
       }
       surah.lines.push(entry);
@@ -162,32 +164,50 @@
   }
 
   /**
-   * Teile einer Seite: Viertel (size 4), Hälften (2) oder die ganze Seite (1),
-   * immer aus ganzen Versen. `has` beschränkt auf einen Bereich (z. B. eine
-   * Sure). Für Seiten mit Inhalten (ghafir_teile.csv) gilt die dort
-   * festgelegte, inhaltlich sinnvolle Einteilung.
+   * Größe in Vierteln einer Seite, gerundet: unter 37,5 % ein Viertel,
+   * 37,5–62,5 % eine Hälfte, darüber drei Viertel, ab 87,5 % eine Seite.
+   */
+  function quartersOf(size) {
+    const q = size * 4;
+    return Math.max(1, Math.min(4, Math.abs(q - 2.5) < 1e-6 ? 2 : Math.round(q)));
+  }
+
+  /** Bezeichnung einer Teilgröße. */
+  const SIZE_NAMES = { 1: "Viertel", 2: "Hälfte", 3: "Dreiviertel", 4: "Seite" };
+  const sizeName = (unit) => SIZE_NAMES[unit.quarters] || "Teil";
+
+  /** Ausdehnung von Versen in Seiten (Kopfzeile und Basmala zählen beim ersten Vers mit). */
+  const extentOf = (verses) => (verses[verses.length - 1].end - verseStart(verses[0])) / LINES_PER_PAGE;
+
+  /**
+   * Teile einer Seite – gewählt wird Viertel (size 4), Hälfte (2) oder ganze
+   * Seite (1). Damit die Einteilung glatt aufgeht, wird gerundet: Füllt der
+   * Bereich die Seite nur zu drei Vierteln (z. B. die erste Seite einer Sure),
+   * gibt es drei Viertel statt vier. Die Teile sind ganze Verse; `has`
+   * beschränkt auf einen Bereich (z. B. eine Sure). Für Seiten mit Inhalten
+   * (ghafir_teile.csv) gilt die dort festgelegte, inhaltlich sinnvolle
+   * Einteilung, wenn sie zur gerundeten Zahl der Teile passt.
    */
   function pageUnits(p, size, has) {
     const all = versesStartingOn(p);
     const verses = has ? all.filter(has) : all;
     if (!verses.length) return [];
+    const n = Math.max(1, Math.min(verses.length, Math.round(extentOf(verses) * size + 1e-9)));
     let groups = null;
     const c = (window.CONTENT_PARTS || {})[p];
-    if (size > 1 && c && c[size]) {
-      const own = verses.filter((v) => v.surah === c.s);
-      const ownAll = all.filter((v) => v.surah === c.s);
-      if (own.length && own.length === ownAll.length) {
-        const fixed = c[size].map(([a, b]) => own.filter((v) => v.ayah >= a && v.ayah <= b)).filter((g) => g.length);
-        // Verse anderer Suren auf derselben Seite: eigener Teil (Viertel) bzw. zum Nachbarteil
-        const before = verses.filter((v) => v.surah < c.s);
-        const after = verses.filter((v) => v.surah > c.s);
-        groups = fixed;
-        if (before.length) groups = size === 4 ? [before, ...groups] : [[...before, ...groups[0]], ...groups.slice(1)];
-        if (after.length) groups = size === 4 ? [...groups, after] : [...groups.slice(0, -1), [...groups[groups.length - 1], ...after]];
-      }
+    if (n > 1 && c && c[size] && c[size].length === n && verses.every((v) => v.surah === c.s)) {
+      const fixed = c[size].map(([a, b]) => verses.filter((v) => v.ayah >= a && v.ayah <= b));
+      // nur, wenn die festgelegten Teile genau die Verse des Bereichs abdecken
+      if (fixed.every((g) => g.length) && fixed.reduce((x, g) => x + g.length, 0) === verses.length) groups = fixed;
     }
-    if (!groups) groups = size === 1 ? [verses] : splitVerses(verses, size);
-    return groups.map((vs, i) => makeUnit(vs, { page: p, part: i, parts: groups.length, kind: size }));
+    if (!groups) groups = n === 1 ? [verses] : splitVerses(verses, n);
+    // Bezeichnung: mehrere Teile heißen wie gewählt (Viertel, Hälfte); ein
+    // einzelner Teil nach seiner gerundeten Größe (z. B. Dreiviertel)
+    return groups.map((vs, i) => {
+      const unit = makeUnit(vs, { page: p, part: i, parts: groups.length, kind: size });
+      if (groups.length > 1) unit.quarters = 4 / size;
+      return unit;
+    });
   }
 
   function makeUnit(verses, extra) {
@@ -198,6 +218,7 @@
         verses,
         keys: new Set(verses.map((v) => v.key)),
         size: (last.end - verseStart(first)) / LINES_PER_PAGE,
+        quarters: quartersOf((last.end - verseStart(first)) / LINES_PER_PAGE),
       },
       extra
     );
@@ -234,10 +255,13 @@
    * davorstehender Zeichen wie ۞) – ein bis drei Wörter, die zusammen Sinn
    * ergeben (ghafir_anschluss.csv), sonst bis zu drei Wörter, höchstens bis
    * zum ersten Pausenzeichen. Ist der Vers so kurz, gehört er ganz dazu.
+   * Mit `sameSurah` gibt es am Ende einer Sure keinen Anschluss.
    */
-  function tailOf(unit) {
-    const next = nextVerse(unit.verses[unit.verses.length - 1]);
-    if (!next) return null;
+  function tailOf(unit, sameSurah) {
+    const last = unit.verses[unit.verses.length - 1];
+    const next = nextVerse(last);
+    // Ist eine Sure gewählt, endet der Anschluss an ihrem Ende
+    if (!next || (sameSurah && next.surah !== last.surah)) return null;
     const words = next.tokens.filter((t) => t.type === TOKEN_WORD);
     let n = (window.CONTENT_TAIL || {})[next.key];
     if (!n) {
@@ -291,12 +315,15 @@
     juzList,
     meta: (n) => surahs[n - 1],
     load,
+    /** Vers einer geladenen Sure (sonst null). */
+    verse: (n, a) => (cache[n] && cache[n].ayahs[a - 1]) || null,
     loadPages,
     loadSurahPages,
     linesOfPage,
     versesStartingOn,
     juzOfPage,
     pageUnits,
+    sizeName,
     wordsOf,
     tailOf,
     label,

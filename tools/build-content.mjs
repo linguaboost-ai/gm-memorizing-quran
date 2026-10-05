@@ -1,8 +1,8 @@
 // Erzeugt data/content.js aus den Inhaltsdateien im Stammverzeichnis:
 //
-//   dhikr.csv      Adhkar für die 1-Minuten-Pause
+//   dhikr.csv      Adhkar für die 1-Minuten-Pause (Anzahl 3/7/10 nach Länge)
 //   test_quiz.csv  Quizfragen für die 2-Minuten-Pause (Antwort 1 ist richtig)
-//   text_quiz.txt  Texte mit Frage für die 4-Minuten-Pause
+//   text_quiz.txt  Texte mit drei Fragen für die 4-Minuten-Pause
 //   ghafir.csv     Versfragmente mit Übersetzung und Emoji
 //   ghafir_munasaba.csv  Munāsaba nach al-Biqāʿī zwischen den Fragmenten:
 //                  je Fragment eine Aussage und eine Frage, die das nächste
@@ -74,7 +74,12 @@ const dhikr = parseCsv(read("dhikr.csv"))
   .slice(1)
   .filter((r) => r[0] && r[1] && r[2])
   // Tippfehler in der Vorlage: lateinisches „d“ in مُحَمَّدٍ
-  .map(([ar, tr, de, reward]) => ({ ar: ar.replace(/مُحَمَّdٍ/g, "مُحَمَّدٍ"), tr, de, reward }));
+  .map(([ar, tr, de, reward]) => ({ ar: ar.replace(/مُحَمَّdٍ/g, "مُحَمَّدٍ"), tr, de, reward }))
+  // Aufgabe in der 1-Minuten-Pause: kurze Adhkar 10 Mal, mittlere 7 Mal, lange 3 Mal
+  .map((d) => {
+    const letters = d.ar.replace(/[^ء-يٱ]/g, "").length;
+    return Object.assign(d, { n: letters <= 15 ? 10 : letters <= 33 ? 7 : 3 });
+  });
 
 // --- Quiz (Antwort 1 ist jeweils richtig) ---
 const quiz = parseCsv(read("test_quiz.csv"))
@@ -82,22 +87,29 @@ const quiz = parseCsv(read("test_quiz.csv"))
   .filter((r) => r[0] && r[1] && r[4])
   .map(([q, a1, a2, a3, a4]) => ({ q, answers: [a1, a2, a3, a4].map((a) => a.replace(/\s*\[\d+\]\s*$/, "")) }));
 
-// --- Texte mit Frage ---
+// --- Texte mit Fragen („Frage 1:“, „Frage 2:“ … oder nur „Frage:“) ---
 const texts = [];
 {
   const blocks = read("text_quiz.txt").split(/\n(?=Ausschnitt \d+:)/);
   for (const block of blocks) {
     const lines = block.split(/\r?\n/).map((l) => l.trim());
     const title = lines[0].replace(/^Ausschnitt \d+:\s*/, "").replace(/\s*\(ca\.[^)]*\)\s*$/, "");
-    const qIdx = lines.findIndex((l) => /^Frage:?$/.test(l));
+    const isQ = (l) => /^Frage(\s*\d+)?:?$/.test(l);
+    const qIdx = lines.findIndex(isQ);
+    if (qIdx < 0) continue;
     const text = lines.slice(1, qIdx).filter(Boolean).join("\n");
-    const rest = lines.slice(qIdx + 1).filter(Boolean);
-    const question = rest[0];
-    const options = rest.slice(1).map((l) => {
-      const m = l.match(/^([A-D])\)\s*(.*?)\s*\((Richtig|Falsch[^)]*)\)\s*$/);
-      return { text: m ? m[2] : l.replace(/^[A-D]\)\s*/, ""), correct: !!m && m[3] === "Richtig" };
-    });
-    if (title && text && question) texts.push({ title, text, question, options });
+    const questions = [];
+    let cur = null;
+    for (const l of lines.slice(qIdx).filter(Boolean)) {
+      if (isQ(l)) questions.push((cur = { q: "", options: [] }));
+      else if (!cur.q) cur.q = l;
+      else {
+        const m = l.match(/^([A-D])\)\s*(.*?)\s*\((Richtig|Falsch[^)]*)\)\s*$/);
+        cur.options.push({ text: m ? m[2] : l.replace(/^[A-D]\)\s*/, ""), correct: !!m && m[3] === "Richtig" });
+      }
+    }
+    for (const q of questions) if (q.options.filter((o) => o.correct).length !== 1) console.warn(`Text „${title}“: Frage „${q.q}“ braucht genau eine richtige Antwort`);
+    if (title && text && questions.length) texts.push({ title, text, questions });
   }
 }
 
@@ -393,6 +405,32 @@ if (existsSync(join(root, "ghafir_vorbereitung.md"))) {
   }
 }
 
+// Position jedes Schlüsselworts im Vers (Wortindex), in Lesereihenfolge
+let keyMissing = 0;
+for (const [key, e] of Object.entries(prep)) {
+  const [s, a] = key.split(":").map(Number);
+  surahWords[s] = surahWords[s] || loadSurah(s);
+  const words = surahWords[s][a] || [];
+  let from = 0;
+  for (const b of e.blocks) {
+    if (b.t !== "kw") continue;
+    // Tatweel (gedehnte Buchstaben) zählt nicht mit
+    const want = b.ar.replace(/ـ/g, "").split(/\s+/).filter(Boolean);
+    let at = -1;
+    const plain = (w) => w.replace(/ـ/g, "");
+    for (let i = from; i + want.length <= words.length && at < 0; i++) if (want.every((w, j) => sameWord(plain(words[i + j]), w))) at = i;
+    // sonst: Wort, dessen Gerüst das Schlüsselwort enthält
+    for (let i = from; i < words.length && at < 0; i++) if (skeleton(plain(words[i])).includes(skeleton(want[0]))) at = i;
+    if (at < 0) {
+      keyMissing++;
+      console.warn(`Vorbereitung ${key}: Schlüsselwort „${b.ar}“ nicht im Vers gefunden`);
+      continue;
+    }
+    b.w = at;
+    from = at + 1;
+  }
+}
+
 const header = "// Generiert von tools/build-content.mjs – nicht von Hand bearbeiten.\n";
 writeFileSync(
   join(root, "data/content.js"),
@@ -410,4 +448,4 @@ writeFileSync(
     `window.CONTENT_PREP=${JSON.stringify(prep)};\n`
 );
 console.log(`${dhikr.length} Adhkar, ${quiz.length} Quizfragen, ${texts.length} Texte, ${byVerse.size} Verse mit Fragmenten (${unmatched} Grenzen nur ungefähr), Munāsaba für ${munCount} Fragmente.`);
-console.log(`Ghāfir: ${bullets} Stichpunkte, ${subCount} Unterteile, ${gapCount} Lückenwörter, ${questionCount} Fragen, ${Object.keys(parts).length} Seiten mit Teilen, ${Object.keys(tails).length} Anschlüsse, ${lineCount} Zeilenübersetzungen, Vorbereitung: ${prepParts} Teile mit ${prepKeys} Schlüsselwörtern.`);
+console.log(`Ghāfir: ${bullets} Stichpunkte, ${subCount} Unterteile, ${gapCount} Lückenwörter, ${questionCount} Fragen, ${Object.keys(parts).length} Seiten mit Teilen, ${Object.keys(tails).length} Anschlüsse, ${lineCount} Zeilenübersetzungen, Vorbereitung: ${prepParts} Teile mit ${prepKeys} Schlüsselwörtern (${keyMissing} ohne Position).`);

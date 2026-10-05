@@ -1,11 +1,12 @@
 /*
  * Aktivitäten für die Pausen zwischen den Wiederholungen.
  *
- *   1 Minute  – Dhikr (dhikr.csv): „Los geht's“ startet den Timer, danach
- *               „Ich habe … Mal geschafft.“
+ *   1 Minute  – Dhikr-Aufgaben (dhikr.csv): zufällig, je mit Anzahl
+ *               (lange 3 Mal, mittlere 7 Mal, kurze 10 Mal). Bestätigen –
+ *               dann kommt der nächste, bis die Minute um ist.
  *   2 Minuten – Quiz im „Wer wird Millionär“-Stil (test_quiz.csv), danach
  *               „Das habe ich heute Neues gelernt.“
- *   4 Minuten – Lesetext mit Frage (text_quiz.txt), danach
+ *   4 Minuten – Lesetext mit drei Fragen (text_quiz.txt), danach
  *               „Das nehme ich von der Geschichte mit.“
  *
  * Die Funktionen erzeugen nur HTML; Klicks laufen über data-action in app.js.
@@ -25,9 +26,18 @@
 
   /** Startzustand der Aktivität zur Pause k (0, 1, 2). */
   function init(k) {
-    if (k === 0) return { idx: random(DHIKR.length), count: "" };
+    if (k === 0) return { queue: shuffle(DHIKR.map((_, i) => i)), pos: 0, taps: 0, done: [] };
     if (k === 1) return { order: shuffle(QUIZ.map((_, i) => i)), pos: 0, perms: {}, answers: {}, note: "" };
-    return { idx: random(TEXTS.length), choice: null, note: "" };
+    const idx = random(TEXTS.length);
+    return { idx, choices: (TEXTS[idx] ? TEXTS[idx].questions : []).map(() => null), note: "" };
+  }
+
+  /** Passt ein gespeicherter Zustand noch? */
+  function valid(a, k) {
+    if (!a) return false;
+    if (k === 0) return Array.isArray(a.queue) && a.queue.length === DHIKR.length && Array.isArray(a.done);
+    if (k === 1) return Array.isArray(a.order) && a.order.length === QUIZ.length;
+    return !!TEXTS[a.idx] && Array.isArray(a.choices) && a.choices.length === TEXTS[a.idx].questions.length;
   }
 
   /** Timer-Anzeige: Ring mit Restzeit. */
@@ -78,29 +88,57 @@
 
   /* ------------------------------------------------------------- Dhikr */
 
+  /** Kurzname eines Dhikr für die Liste der geschafften. */
+  const shortName = (d) => (d.tr.length > 34 ? d.tr.split(/[,.]/)[0] : d.tr);
+
+  const currentDhikr = (a) => DHIKR[a.queue[a.pos % a.queue.length]] || DHIKR[0];
+
   function dhikrHtml(a, t) {
-    const d = DHIKR[a.idx] || DHIKR[0];
-    let timer;
-    if (!t.started) timer = `<button class="btn" data-action="timer-start">Los geht's</button>`;
-    else if (!t.done) timer = ring(t.left, t.total, true);
-    else timer = `<div class="time-up">✓ Die Minute ist um.</div>`;
+    const d = currentDhikr(a);
+    const n = d.n || 3;
+    const done = a.done.map((i) => DHIKR[i]).filter(Boolean);
+    const list = done.length
+      ? `<div class="dhikr-done"><span class="label">Geschafft</span>${done.map((x) => `<span class="dhikr-chip">✓ ${esc(shortName(x))} · ${x.n || 3}×</span>`).join("")}</div>`
+      : "";
+    if (t.done) {
+      return `
+      <div class="activity">
+        ${timerBar("Dhikr · 1 Minute", 0, t.total, true)}
+        <div class="time-up big">✓ Die Minute ist um.<small>Jetzt wiederholst du den Abschnitt aus dem Gedächtnis.</small></div>
+        ${list}
+      </div>`;
+    }
+    const pct = Math.min(100, (a.taps / n) * 100);
     return `
       <div class="activity">
-        ${heading("Pause · <span class=\"multi\">1 Minute Dhikr</span>", "Es geht gleich weiter.", "Nimm dir 1 Minute Zeit für Dhikr.")}
-        <div class="text-card"><p class="ar-text" lang="ar" dir="rtl">${esc(d.ar)}</p></div>
-        <div class="activity-timer">${timer}</div>
-        <label class="count-row ${t.done ? "" : "disabled"}">
-          Ich habe <input type="number" inputmode="numeric" min="0" class="num count-input" data-field="dhikr-count" value="${esc(String(a.count || ""))}" ${t.done ? "" : "disabled"} placeholder="…" /> Mal geschafft.
-        </label>
-        <div class="card dhikr-info">
-          <span class="label">Umschrift</span>
+        ${timerBar("Dhikr · 1 Minute", t.left, t.total, false)}
+        ${heading(`Pause · <span class="multi">Aufgabe ${a.pos + 1}</span>`, `Sprich ${n} Mal:`, "Danach bestätigen – dann kommt der nächste Dhikr, bis die Minute um ist.")}
+        <div class="card dhikr-task">
+          <span class="dhikr-times">${n}×</span>
+          <p class="ar-text" lang="ar" dir="rtl">${esc(d.ar)}</p>
           <p class="dhikr-tr">${esc(d.tr)}</p>
-          <span class="label">Übersetzung</span>
           <p class="dhikr-de">${esc(d.de)}</p>
-          <span class="label">Belohnung</span>
-          <p class="dhikr-reward">${esc(d.reward)}</p>
+          ${d.reward ? `<details class="dhikr-reward"><summary>Belohnung</summary><p>${esc(d.reward)}</p></details>` : ""}
         </div>
+        <button class="tap-counter" data-action="dhikr-tap" aria-label="Mitzählen" style="--p:${pct}%">
+          <b>${a.taps}</b><span>/ ${n}</span><small>zum Mitzählen tippen</small>
+        </button>
+        <button class="btn" data-action="dhikr-done">✓ ${n} Mal gemacht</button>
+        ${list}
       </div>`;
+  }
+
+  /** Antippen: mitzählen bzw. bestätigen. Gibt true zurück, wenn neu zu zeichnen ist. */
+  function dhikrAct(a, what) {
+    const n = currentDhikr(a).n || 3;
+    if (what === "tap" && a.taps + 1 < n) {
+      a.taps++;
+      return true;
+    }
+    a.done.push(a.queue[a.pos % a.queue.length]);
+    a.pos++;
+    a.taps = 0;
+    return true;
   }
 
   /* -------------------------------------------------------------- Quiz */
@@ -155,11 +193,11 @@
 
   function textHtml(a, t) {
     const x = TEXTS[a.idx] || TEXTS[0];
-    const right = x.options.findIndex((o) => o.correct);
+    const answered = a.choices.filter((c) => c !== null).length;
     return `
       <div class="activity">
         ${timerBar("Lesen · 4 Minuten", t.left, t.total, t.done)}
-        ${heading("Pause · <span class=\"multi\">4 Minuten Lesen</span>", "Lies den Text, dann beantworte die Fragen am Schluss.", "Es geht gleich weiter.")}
+        ${heading("Pause · <span class=\"multi\">4 Minuten Lesen</span>", "Lies den Text, dann beantworte die drei Fragen.", "Es geht gleich weiter.")}
         <article class="card read-text">
           <h2>${esc(x.title)}</h2>
           ${x.text
@@ -167,18 +205,27 @@
             .map((p) => `<p>${esc(p)}</p>`)
             .join("")}
         </article>
-        <div class="section-label">Frage</div>
-        <p class="frage small">${esc(x.question)}</p>
-        <div class="options">
-          ${x.options
-            .map((o, i) => {
-              let st = "";
-              if (a.choice !== null) st = o.correct ? (i === a.choice ? "ok" : "missed") : i === a.choice ? "bad" : "dim";
-              return optionHtml(LETTERS[i], o.text, "text-answer", i, st, a.choice !== null);
-            })
-            .join("")}
-        </div>
-        ${a.choice !== null ? feedbackHtml(a.choice === right, right >= 0 ? x.options[right].text : "", "") : ""}
+        ${x.questions
+          .map((q, qi) => {
+            const choice = a.choices[qi];
+            const right = q.options.findIndex((o) => o.correct);
+            return `<div class="text-question">
+              <div class="section-label">Frage ${qi + 1} von ${x.questions.length}</div>
+              <p class="frage small">${esc(q.q)}</p>
+              <div class="options">
+                ${q.options
+                  .map((o, i) => {
+                    let st = "";
+                    if (choice !== null) st = o.correct ? (i === choice ? "ok" : "missed") : i === choice ? "bad" : "dim";
+                    return optionHtml(LETTERS[i], o.text, "text-answer", `${qi}:${i}`, st, choice !== null);
+                  })
+                  .join("")}
+              </div>
+              ${choice !== null ? feedbackHtml(choice === right, right >= 0 ? q.options[right].text : "", "") : ""}
+            </div>`;
+          })
+          .join("")}
+        ${answered === x.questions.length && !t.done ? `<p class="hinweis center">Alle Fragen beantwortet – gleich geht es weiter.</p>` : ""}
         ${
           t.done
             ? `<label class="note-field"><span>Das nehme ich von der Geschichte mit.</span>
@@ -188,5 +235,5 @@
       </div>`;
   }
 
-  window.Activities = { init, dhikrHtml, quizHtml, textHtml, ring, timerBar, mmss, DHIKR, QUIZ, TEXTS };
+  window.Activities = { init, valid, dhikrHtml, dhikrAct, quizHtml, textHtml, ring, timerBar, mmss, DHIKR, QUIZ, TEXTS };
 })();
