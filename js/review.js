@@ -51,34 +51,82 @@
       .join(" ");
   }
 
+  /** Höchstens so viele Schlüsselwörter je Viertel einer Seite. */
+  const KEYS_PER_QUARTER = 5;
+
+  /**
+   * Auswahl, wenn es mehr Schlüsselwörter gibt als erlaubt: zuerst das erste
+   * jedes Verses (Versanfänge sind beim Auswendiglernen die wichtigsten
+   * Anker), dann die, die die größten Lücken am gleichmäßigsten teilen.
+   * Positionen g zählen die Wörter ab Abschnittsbeginn.
+   */
+  function pick(cands, limit, total) {
+    if (cands.length <= limit) return cands;
+    const fill = (chosen, rest) => {
+      while (chosen.length < limit && rest.length) {
+        let best = 0;
+        let bestScore = -1;
+        rest.forEach((c, i) => {
+          const before = Math.max(0, ...chosen.filter((x) => x.g <= c.g).map((x) => x.g));
+          const after = Math.min(total, ...chosen.filter((x) => x.g > c.g).map((x) => x.g));
+          const score = Math.min(c.g - before, after - c.g);
+          if (score > bestScore) {
+            bestScore = score;
+            best = i;
+          }
+        });
+        chosen.push(rest.splice(best, 1)[0]);
+      }
+      return chosen;
+    };
+    const firsts = cands.filter((c, i) => i === 0 || cands[i - 1].vi !== c.vi);
+    const chosen = firsts.length <= limit ? firsts.slice() : fill([firsts[0]], firsts.slice(1));
+    return fill(chosen, cands.filter((c) => !chosen.includes(c))).sort((x, y) => x.g - y.g);
+  }
+
   /**
    * Schlüsselwörter eines Abschnitts in Lesereihenfolge mit ihrem Versstück –
-   * oder null, wenn es für einen Vers keine gibt.
-   * @returns {Array<{ ar, emoji, de, verse, tokens }>}
+   * höchstens fünf je Viertel – oder null, wenn es für einen Vers keine gibt.
+   * Das Versstück beginnt beim ersten Schlüsselwort eines Verses am
+   * Versanfang, sonst am Anfang seines Fragments (bzw. beim Wort selbst), und
+   * reicht bis vor das nächste Stück; Verse ohne ausgewähltes Schlüsselwort
+   * gehören zum Stück davor.
+   * @returns {Array<{ ar, emoji, de, verse, tokens, block }>}
    */
   function keysOf(unit, fragments) {
     const P = window.CONTENT_PREP || {};
-    const out = [];
-    for (const v of unit.verses) {
+    const flat = []; // Wörter und Versende-Zeichen des Abschnitts
+    const wordAt = []; // Position im Abschnitt → Index in flat
+    const cands = [];
+    const verseStart = [];
+    for (const [vi, v] of unit.verses.entries()) {
       const e = P[v.key];
       const kws = e ? e.blocks.filter((b) => b.t === "kw" && b.de && b.w !== undefined) : [];
       if (!kws.length) return null;
-      const words = wordsOfVerse(v);
-      const end = v.tokens.find((t) => t.type === Q.TOKEN_AYAH_END);
-      // Anfänge der Fragmente (Waqf bzw. ghafir.csv) in diesem Vers
-      const fstarts = fragments.filter((f) => f.key === v.key && f.words.length).map((f) => f.words[0].w);
-      const starts = kws.map((b, i) => {
-        if (i === 0) return 0;
-        const near = fstarts.filter((f) => f > kws[i - 1].w && f <= b.w);
-        return near.length ? Math.max(...near) : b.w;
-      });
-      kws.forEach((b, i) => {
-        const last = i === kws.length - 1;
-        const tokens = words.slice(starts[i], last ? words.length : starts[i + 1]);
-        if (last && end) tokens.push(end);
-        out.push({ ar: b.ar, emoji: b.emoji, de: b.de, verse: v.ayah, tokens });
-      });
+      verseStart[vi] = wordAt.length;
+      for (const b of kws) cands.push({ b, v, vi, g: wordAt.length + b.w });
+      for (const t of v.tokens) {
+        if (t.type === Q.TOKEN_WORD) {
+          wordAt.push(flat.length);
+          flat.push(t);
+        } else if (t.type === Q.TOKEN_AYAH_END) flat.push(t);
+      }
     }
+    const limit = KEYS_PER_QUARTER * (unit.quarters || 1);
+    const chosen = pick(cands, limit, wordAt.length);
+    const starts = chosen.map((c, i) => {
+      if (i === 0) return 0;
+      const prev = chosen[i - 1];
+      if (prev.vi !== c.vi) return verseStart[c.vi];
+      // Anfang des Fragments, in dem das Schlüsselwort steht (Waqf bzw. ghafir.csv)
+      const near = fragments.filter((f) => f.key === c.v.key && f.words.length && f.words[0].w > prev.b.w && f.words[0].w <= c.b.w).map((f) => f.words[0].w);
+      return verseStart[c.vi] + (near.length ? Math.max(...near) : c.b.w);
+    });
+    const out = chosen.map((c, i) => {
+      const from = wordAt[starts[i]];
+      const to = i + 1 < chosen.length ? wordAt[starts[i + 1]] : flat.length;
+      return { ar: c.b.ar, emoji: c.b.emoji, de: c.b.de, verse: c.v.ayah, tokens: flat.slice(from, to), block: c.b };
+    });
     return out.length >= 2 ? out : null;
   }
 
@@ -343,6 +391,8 @@
   function contextHtml(info, marked) {
     const st = info.prep;
     const out = [];
+    // nur die Schlüsselwörter, die auch beim Ordnen vorkommen
+    const shown = new Set((info.keys || []).map((k) => k.block));
     if (st.before) out.push(note("Was davor kam", st.before, "before"));
     info.unit.verses.forEach((v, vi) => {
       const meta = st.verses[vi];
@@ -359,7 +409,7 @@
           if (b.w !== undefined) {
             lastW = b.w;
             const i = fi(b.w);
-            if (i >= 0) kwOf[i].push(b);
+            if (i >= 0 && shown.has(b)) kwOf[i].push(b);
           }
         } else if (lastW < 0) notesBefore.push(b.text);
         else {

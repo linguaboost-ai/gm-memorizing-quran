@@ -49,10 +49,13 @@ die Sure nur zu drei Vierteln – sie hat deshalb drei Viertel, zwei Hälften
 oder als „ganze Seite“ ein Dreiviertel. Ist eine Sure gewählt, enthält kein
 Teil ein Stück der nächsten Sure, und der Anschluss endet am Ende der Sure.
 
-Die Teile sind ganze Verse und sollen sinnvolle Blöcke sein: Für Ghāfir legt
-`ghafir_teile.csv` Viertel und Hälften jeder Seite inhaltlich fest (wenn die
-Zahl der Teile passt); sonst werden die Verse nach Wortzahl geteilt, wobei ein
-Teil nie mit einem sehr kurzen Vers (z. B. حمٓ) endet.
+Die Teile sind ganze Verse, möglichst gleich lang und sinnvolle Blöcke: Für
+Ghāfir legt `ghafir_teile.csv` Viertel und Hälften jeder Seite fest (wenn die
+Zahl der Teile passt) – nach Zeilen ausgewogen, ohne einen Satz zu trennen,
+der über das Versende weiterläuft, wo es sich vermeiden lässt (z. B. Seite 468:
+8–9 | 10–11 | 12–13 | 14–16 mit je 3,4–4 Zeilen). Sonst werden die Verse nach
+Wortzahl geteilt, wobei ein Teil nie mit einem sehr kurzen Vers (z. B. حمٓ)
+endet.
 
 ## Ablauf eines Teils
 
@@ -88,8 +91,10 @@ Teil nie mit einem sehr kurzen Vers (z. B. حمٓ) endet.
 Ordnen und Zusammenhang gibt es für Abschnitte mit Inhalten (derzeit Ghāfir);
 bei anderen Suren folgen auf die Pausen nur die Wiederholungen.
 
-Die Schlüsselwörter stammen aus `ghafir_vorbereitung.md` (meist fünf je
-Viertel). Ihr Versstück reicht vom Anfang des Fragments, in dem sie stehen
+Die Schlüsselwörter stammen aus `ghafir_vorbereitung.md` – höchstens fünf je
+Viertel (zehn je Hälfte, zwanzig je Seite). Gibt es mehr, bleibt das erste
+jedes Verses, die übrigen werden so gewählt, dass sie den Abschnitt möglichst
+gleichmäßig teilen; im Zusammenhang erscheinen dieselben. Ihr Versstück reicht vom Anfang des Fragments, in dem sie stehen
 (beim ersten Schlüsselwort eines Verses vom Versanfang), bis vor das Stück des
 nächsten Schlüsselworts; das letzte endet mit dem Vers.
 
