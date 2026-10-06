@@ -2,8 +2,9 @@
  * Tresor: schwierige Stellen sammeln und gezielt wiederholen.
  *
  * Passiert beim Wiederholen aus dem Gedächtnis ein Fehler, tippt man auf das
- * Wort und legt es in den Tresor – als einzelnes Wort, als Fragment (bis zum
- * nächsten Pausenzeichen) oder als ganzen Vers. Kommt dieselbe Stelle wieder
+ * Wort und legt es in den Tresor – als einzelnes Wort, als mehrere Wörter
+ * (danach das letzte Wort antippen), als Fragment (bis zum nächsten
+ * Pausenzeichen) oder als ganzen Vers. Kommt dieselbe Stelle wieder
  * dazu, zählt der Tresor mit: oben stehen die Stellen mit den meisten Fehlern.
  *
  * Üben: Der Anfang des Verses (bzw. das Ende des vorigen) steht da, die
@@ -11,7 +12,7 @@
  * „Wieder Fehler“. Nach drei Mal „Gewusst“ in Folge gilt eine Stelle als
  * sitzend und rückt nach unten; „Sitzt – entfernen“ nimmt sie heraus.
  *
- * Eintrag: { id, s, a, w0, w1, kind: "word" | "frag" | "verse", n, ok, added, last }
+ * Eintrag: { id, s, a, w0, w1, kind: "word" | "words" | "frag" | "verse", n, ok, added, last }
  * (w0–w1: Wörter im Vers, 0-basiert; n: Fehler; ok: „Gewusst“ in Folge)
  */
 (function () {
@@ -19,7 +20,7 @@
 
   const Q = window.Quran;
   const esc = window.Fade.escapeHtml;
-  const KIND = { word: "Wort", frag: "Fragment", verse: "Vers" };
+  const KIND = { word: "Wort", words: "Wörter", frag: "Fragment", verse: "Vers" };
   const SOLID = 3;
 
   const ref = (it) => `${Q.meta(it.s).tr} ${it.a}`;
@@ -90,10 +91,14 @@
           <span class="vault-opt-count">${it ? `schon ${it.n}× drin · +1` : "in den Tresor"}</span>
         </button>`;
     };
+    const range =
+      last > 0
+        ? `<button class="vault-opt" data-action="vault-range" data-value="${o.w}"><span class="vault-kind">${KIND.words}</span><span class="vault-opt-ref">Mehrere Wörter …<small>Danach das letzte Wort der Stelle antippen</small></span></button>`
+        : "";
     return `<div class="sheet vault-sheet" role="dialog" aria-label="In den Tresor" data-key="${v.key}">
         <div class="sheet-head"><div class="sheet-head-row"><h3>🔒 In den Tresor</h3><button class="icon-btn" data-action="close-sheet" aria-label="Schließen">✕</button></div>
           <p class="hinweis">Hier hast du dich vertan? Leg die Stelle in den Tresor – dort kannst du sie später gezielt wiederholen.</p></div>
-        <div class="sheet-list">${opts.map(row).join("")}
+        <div class="sheet-list">${row(opts[0])}${range}${opts.slice(1).map(row).join("")}
           ${o.canPlay ? `<button class="vault-opt play" data-action="vault-listen" data-value="${v.key}"><span class="vault-kind">▶</span><span class="vault-opt-ref">Ab diesem Vers anhören</span></button>` : ""}
         </div>
       </div>`;

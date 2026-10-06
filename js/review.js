@@ -133,14 +133,22 @@
   /* ---------------------------------------------------------------- Ordnen */
 
   const SORTS = [
-    { title: "Schlüsselwörter mit Versstück", frage: "In welcher Reihenfolge kommen sie im Abschnitt?" },
+    { title: "Schlüsselwörter zuordnen", frage: "Welches Schlüsselwort gehört zu welchem Versstück?" },
     { title: "Schlüsselwörter", frage: "Und jetzt ohne das Versstück?" },
     { title: "Emojis", frage: "Und jetzt nur mit den Emojis?" },
   ];
 
-  const sortInit = (n) => ({ order: mixed(n), placed: 0, wheel: 0 });
-  const sortValid = (st, n) => !!st && Array.isArray(st.order) && st.order.length === n && st.placed >= 0 && st.placed <= n;
-  const sortDone = (st, n) => !!st && st.placed >= n;
+  /*
+   * Ordnen 1 (Zuordnen): { match: true, pool: [ids gemischt], placed: [bool je Versstück] }
+   * Ordnen 2 und 3 (Auswahlrad): { order: [ids gemischt], placed: Anzahl, wheel }
+   */
+  const sortInit = (n, k) => (k === 0 ? { match: true, pool: mixed(n), placed: range(n).map(() => false) } : { order: mixed(n), placed: 0, wheel: 0 });
+  function sortValid(st, n, k) {
+    if (!st) return false;
+    if (k === 0) return !!st.match && Array.isArray(st.placed) && st.placed.length === n && Array.isArray(st.pool) && st.pool.length + st.placed.filter(Boolean).length === n;
+    return !st.match && Array.isArray(st.order) && st.order.length === n && st.placed >= 0 && st.placed <= n;
+  }
+  const sortDone = (st, n) => !!st && (st.match ? st.placed.every(Boolean) : st.placed >= n);
 
   const keyLine = (k) => `<span class="kw-de">${esc(k.de)}</span><span class="kw-emo">${esc(k.emoji)}</span><bdi class="kw-ar" lang="ar">${esc(k.ar)}</bdi>`;
 
@@ -158,8 +166,132 @@
     return k === 0 ? s + "|" + key.tokens.map((t) => t.text).join(" ") : s;
   }
 
+  /* ---- Ordnen 1: Kästchen den Versstücken zuordnen */
+
+  // Angetipptes Kästchen (gilt nur für den Zustand, in dem es angetippt wurde)
+  let selected = { st: null, id: null };
+  const selectedId = (st) => (selected.st === st ? selected.id : null);
+
+  /**
+   * Oben die Kästchen „Deutsch EMOJI Arabisch“ (gemischt), darunter die
+   * Versstücke in der richtigen Reihenfolge mit Pfeilen, rechts oben an jedem
+   * ein freies Kästchen. Alle Kästchen sind gleich groß (passend für das
+   * größte, siehe mountMatch).
+   */
+  function matchHtml(st, keys) {
+    const sel = selectedId(st);
+    const done = st.placed.every(Boolean);
+    const card = (id) => `<button class="kw-card ${sel === id ? "selected" : ""}" data-card="${id}">${keyLine(keys[id])}</button>`;
+    return `
+      <div class="section-label">Ordnen 1/3 · <span class="multi">${SORTS[0].title}</span></div>
+      <p class="frage">${SORTS[0].frage}</p>
+      <div class="match-wrap">
+        ${
+          done
+            ? ""
+            : `<div class="kw-pool" data-drop="pool">${st.pool.map(card).join("")}</div>
+               <p class="hinweis">Zieh jedes Kästchen auf das freie Feld seines Versstücks – oder tippe erst das Kästchen, dann das Feld an.</p>`
+        }
+        <div class="verse-list">
+          ${keys
+            .map(
+              (key, i) => `${i ? `<div class="vl-arrow" aria-hidden="true">↓</div>` : ""}
+            <div class="vl-row ${st.placed[i] ? "filled" : ""}">
+              <div class="vl-head">
+                <span class="vl-no">${i + 1}</span>
+                <div class="kw-slot ${st.placed[i] ? "filled" : sel !== null ? "armed" : ""}" data-drop="slot" data-i="${i}">${st.placed[i] ? keyLine(key) : ""}</div>
+              </div>
+              <div class="vl-ar" lang="ar" dir="rtl">${wordsHtml(key.tokens)}</div>
+            </div>`
+            )
+            .join("")}
+        </div>
+        ${done ? `<div class="order-done">Ma schā' Allāh – alles richtig zugeordnet.</div>` : ""}
+      </div>`;
+  }
+
+  /**
+   * Ziehen und Antippen für Ordnen 1. Falsche Kästchen springen zurück.
+   * api: { save, render, buzz }
+   */
+  function mountMatch(root, st, keys, api) {
+    const wrap = root.querySelector(".match-wrap");
+    if (!wrap) return;
+    // Alle Kästchen gleich groß: so breit und hoch wie das größte (höchstens Listenbreite)
+    const list = wrap.querySelector(".verse-list");
+    const probe = document.createElement("div");
+    probe.className = "kw-probe";
+    probe.innerHTML = keys.map((k) => `<div class="kw-card">${keyLine(k)}</div>`).join("");
+    wrap.appendChild(probe);
+    // Mindestens zwei Kästchen nebeneinander: zu breite brechen dann in zwei Zeilen um
+    const natural = Math.max(...Array.from(probe.children).map((c) => Math.ceil(c.getBoundingClientRect().width)));
+    const half = Math.floor((wrap.clientWidth - 8) / 2);
+    const maxW = Math.min(list.clientWidth - 44, natural, Math.max(half, 150));
+    probe.style.width = maxW + "px";
+    probe.classList.add("fixed");
+    const maxH = Math.max(...Array.from(probe.children).map((c) => Math.ceil(c.getBoundingClientRect().height)));
+    probe.remove();
+    wrap.style.setProperty("--kw-w", maxW + "px");
+    wrap.style.setProperty("--kw-h", maxH + "px");
+
+    const same = (a, b) => a === b || signature(1, keys[a]) === signature(1, keys[b]);
+    function place(id, slot) {
+      if (st.placed[slot]) return false;
+      if (!same(id, slot)) {
+        const el = wrap.querySelector(`.kw-slot[data-i="${slot}"]`);
+        if (el) {
+          el.classList.remove("shake");
+          void el.offsetWidth;
+          el.classList.add("shake");
+        }
+        api.buzz();
+        selected = { st: null, id: null };
+        wrap.querySelectorAll(".kw-card.selected").forEach((c) => c.classList.remove("selected"));
+        wrap.querySelectorAll(".kw-slot.armed").forEach((c) => c.classList.remove("armed"));
+        return false;
+      }
+      st.placed[slot] = true;
+      st.pool = st.pool.filter((x) => x !== id);
+      selected = { st: null, id: null };
+      api.save();
+      api.render();
+      return true;
+    }
+
+    const pool = wrap.querySelector(".kw-pool");
+    if (pool) {
+      let dragged = false;
+      pool.addEventListener("pointerdown", (e) => {
+        const c = e.target.closest("[data-card]");
+        if (!c) return;
+        dragged = false;
+        holdToDrag(e, (ev) => {
+          dragged = true;
+          const id = +c.dataset.card;
+          startDrag(ev, c, c.innerHTML, (t) => !!t && t.dataset.drop === "slot" && place(id, +t.dataset.i), "kw-ghost");
+        });
+      });
+      pool.addEventListener("click", (e) => {
+        const c = e.target.closest("[data-card]");
+        if (!c || dragged) return;
+        const id = +c.dataset.card;
+        selected = selectedId(st) === id ? { st: null, id: null } : { st, id };
+        api.render();
+      });
+    }
+    wrap.querySelectorAll(".kw-slot:not(.filled)").forEach((slot) =>
+      slot.addEventListener("click", () => {
+        const id = selectedId(st);
+        if (id !== null) place(id, +slot.dataset.i);
+      })
+    );
+  }
+
+  /* ---- Ordnen 2 und 3: Auswahlrad */
+
   /** Blatt mit den eingesetzten Einträgen (oben). */
   function sortSheetHtml(k, st, keys) {
+    if (st.match) return matchHtml(st, keys);
     const done = st.placed >= keys.length;
     return `
       <div class="section-label">Ordnen ${k + 1}/3 · <span class="multi">${SORTS[k].title}</span></div>
@@ -180,7 +312,7 @@
 
   /** Auswahlrad (unten, in der Fußleiste) – leer, wenn alles eingesetzt ist. */
   function sortWheelHtml(k, st, keys) {
-    if (st.placed >= keys.length) return "";
+    if (st.match || st.placed >= keys.length) return "";
     const rest = st.order.filter((id) => id >= st.placed);
     return `<div class="wheel-wrap in-footer kind-${k}">
         <div class="wheel">
@@ -204,6 +336,7 @@
    * api: { save, render, buzz }
    */
   function mountSort(root, k, st, keys, api) {
+    if (st.match) return mountMatch(root, st, keys, api);
     const wrap = root.querySelector(".wheel-wrap");
     const sheet = root.querySelector(".sort-sheet");
     // Gesuchte Zeile sichtbar halten (über der Fußleiste)

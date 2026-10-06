@@ -60,7 +60,7 @@
     learn: "Lernen",
     pause1: "1 Min",
     review1: "Wdh. 1",
-    sort1: "Ordnen 1",
+    sort1: "Zuordnen",
     pause2: "2 Min",
     review2: "Wdh. 2",
     sort2: "Ordnen 2",
@@ -74,7 +74,7 @@
     learn: "Auswendiglernen",
     pause1: "Pause · Dhikr",
     review1: "Wiederholung",
-    sort1: "Schlüsselwörter mit Versstück ordnen",
+    sort1: "Schlüsselwörter den Versstücken zuordnen",
     pause2: "Pause · Quiz",
     review2: "Wiederholung",
     sort2: "Schlüsselwörter ordnen",
@@ -301,6 +301,7 @@
     root.innerHTML = `<div class="screen screen-${screen.name}" ${keepScroll ? 'style="animation:none"' : ""}>${views[screen.name]()}</div>`;
     const after = { start: afterStart, pick: afterPick, session: afterSession };
     if (after[screen.name]) after[screen.name]();
+    showRangeBar();
     if (screen.name !== "session" || !isPause(currentSession())) document.title = "German Method – Qur'an auswendig lernen";
     if (keepScroll) window.scrollTo(0, y);
   }
@@ -645,8 +646,8 @@
   /** Zustand von Ordnen k (wird bei Bedarf neu angelegt). */
   function sortOf(s, info) {
     const k = sortIndex(s.step);
-    if (!Review.sortValid(s.sorts[k], info.keys.length)) {
-      s.sorts[k] = Review.sortInit(info.keys.length);
+    if (!Review.sortValid(s.sorts[k], info.keys.length, k)) {
+      s.sorts[k] = Review.sortInit(info.keys.length, k);
       save();
     }
     return s.sorts[k];
@@ -845,7 +846,7 @@
       case "sort3": {
         const info = sessionInfo();
         if (info && info.keys && Review.sortDone(s.sorts[sortIndex(s.step)], info.keys.length)) return s.step === "sort3" ? "Geschafft. Weiter zum Zusammenhang." : "Geschafft. Weiter zur nächsten Pause.";
-        return "Wische zum gesuchten Eintrag und setze ihn ein – oder zieh ihn nach oben.";
+        return s.step === "sort1" ? "Ordne jedem Versstück sein Schlüsselwort zu." : "Wische zum gesuchten Eintrag und setze ihn ein – oder zieh ihn nach oben.";
       }
       case "verses":
         return "Tippe auf ein Wort, um es in den Tresor zu legen. „Weiter“ führt zum Abschluss.";
@@ -860,6 +861,7 @@
     clearLater();
     s.step = step;
     screen.peek = false;
+    screen.vaultRange = null;
     if (isPause(s)) {
       const k = pauseIndex(s);
       // Eine schon beendete Pause beginnt beim erneuten Betreten von vorn
@@ -1065,6 +1067,42 @@
       player.preview(state.reciter, it.s, it.a);
     }
     render(true);
+  }
+
+  /** Mehrere Wörter: das erste ist gewählt, jetzt das letzte antippen. */
+  function startVaultRange(w) {
+    const sheet = document.querySelector(".vault-sheet");
+    if (!sheet) return;
+    screen.vaultRange = { key: sheet.dataset.key, w: +w };
+    closeSheet();
+    showRangeBar();
+  }
+
+  function showRangeBar() {
+    document.querySelectorAll(".range-bar").forEach((x) => x.remove());
+    document.querySelectorAll(".t.range-start").forEach((x) => x.classList.remove("range-start"));
+    const r = screen.vaultRange;
+    if (!r) return;
+    document.querySelectorAll(`.t[data-key="${r.key}"][data-w="${r.w}"]`).forEach((x) => x.classList.add("range-start"));
+    const bar = document.createElement("div");
+    bar.className = "range-bar";
+    bar.setAttribute("role", "status");
+    bar.innerHTML = `<span>🔒 Tippe jetzt das <b>letzte Wort</b> der Stelle an (im selben Vers).</span><button class="link-btn" data-action="vault-range-cancel">Abbrechen</button>`;
+    document.body.appendChild(bar);
+  }
+
+  /** Zweites Wort angetippt: Wörter dazwischen in den Tresor. */
+  function finishVaultRange(key, w) {
+    const r = screen.vaultRange;
+    if (key !== r.key) return toast("Bitte ein Wort im selben Vers antippen");
+    const [sNo, aNo] = key.split(":").map(Number);
+    const w0 = Math.min(r.w, w);
+    const w1 = Math.max(r.w, w);
+    const it = Vault.add(state.vault, sNo, aNo, w0, w1, w0 === w1 ? "word" : "words");
+    screen.vaultRange = null;
+    save();
+    render(true);
+    toast(`🔒 ${w1 - w0 + 1} ${w0 === w1 ? "Wort" : "Wörter"} im Tresor${it.n > 1 ? ` · ${it.n}× Fehler` : ""}`);
   }
 
   /** Blatt „In den Tresor“ nach dem Antippen eines Wortes. */
@@ -1454,6 +1492,11 @@
         return go("start");
       case "vault-add":
         return vaultAdd(value);
+      case "vault-range":
+        return startVaultRange(value);
+      case "vault-range-cancel":
+        screen.vaultRange = null;
+        return showRangeBar();
       case "vault-listen":
         closeSheet();
         ensureAudioCtx();
@@ -1524,7 +1567,10 @@
     const tok = e.target.closest("#mushaf .t[data-key], #ctx .t[data-key]");
     const s = currentSession();
     if (!tok || !s) return;
-    if ((/^review/.test(s.step) || s.step === "verses") && tok.dataset.w !== undefined) return openVaultSheet(tok.dataset.key, +tok.dataset.w);
+    if ((/^review/.test(s.step) || s.step === "verses") && tok.dataset.w !== undefined) {
+      if (screen.vaultRange) return finishVaultRange(tok.dataset.key, +tok.dataset.w);
+      return openVaultSheet(tok.dataset.key, +tok.dataset.w);
+    }
     if (s.step === "learn") {
       ensureAudioCtx();
       player.playFromKey(tok.dataset.key);

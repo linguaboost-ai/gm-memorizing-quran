@@ -71,13 +71,18 @@ endet.
      Anzahl – lange 3 Mal, mittlere 7 Mal, kurze 10 Mal (z. B. die Salawat
      10 Mal). Mitzählen per Antippen oder direkt „… Mal gemacht“ bestätigen,
      dann kommt der nächste, bis die Minute um ist. Danach geht es von selbst
-     zur **Wiederholung** aus dem Gedächtnis, dann zu **Ordnen 1**: die
-     Schlüsselwörter als „Deutsch EMOJI Arabisch“, darunter ihr Versstück.
+     zur **Wiederholung** aus dem Gedächtnis, dann zu **Zuordnen**: Die
+     Versstücke stehen in der richtigen Reihenfolge untereinander, mit
+     Pfeilen dazwischen, rechts oben an jedem ein freies Feld. Darüber die
+     Kästchen „Deutsch EMOJI Arabisch“ (gemischt, beim Scrollen sichtbar); sie
+     werden auf ihr Versstück gezogen oder erst das Kästchen, dann das Feld
+     angetippt. Falsche springen zurück. Alle Kästchen und Felder sind gleich
+     groß (passend für das größte; am Handy zwei nebeneinander).
    - **2 Minuten Quiz** zur Sīra („Wer wird Millionär“, `test_quiz.csv`) →
      Wiederholung → **Ordnen 2**: „Deutsch EMOJI Arabisch“ ohne Versstück.
    - **4 Minuten Lesetext** mit drei Fragen (`text_quiz.txt`) → Wiederholung →
      **Ordnen 3**: nur die Emojis.
-   - Ordnen geht von oben nach unten: Unten ist ein Auswahlrad (weiches
+   - Ordnen 2 und 3 gehen von oben nach unten: Unten ist ein Auswahlrad (weiches
      Scrollfenster: wischen, Mausrad, Pfeile), der mittlere Eintrag wird mit
      „Einsetzen“ oder durch Hochziehen in die gesuchte Zeile gesetzt. Falsche
      Einträge springen zurück – eine falsche Reihenfolge ist nicht möglich.
@@ -103,6 +108,7 @@ nächsten Schlüsselworts; das letzte endet mit dem Vers.
 Passiert beim Wiederholen ein Fehler, tippt man auf das Wort (mit „Text zum
 Prüfen zeigen“ lässt sich der ausgegraute Text dafür einblenden; auch im
 Zusammenhang sind die Wörter antippbar). Ein Blatt bietet an: **Wort**,
+**mehrere Wörter** (danach das letzte Wort im selben Vers antippen),
 **Fragment** (bis zum Pausenzeichen) oder **ganzer Vers** in den Tresor – oder
 ab diesem Vers anhören. Kommt dieselbe Stelle wieder hinein, zählt der Tresor
 einen Fehler mehr. Stellen im Tresor sind im Mushaf rot unterlegt.
